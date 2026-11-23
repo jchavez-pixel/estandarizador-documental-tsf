@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181818">
+  <meta name="description" content="Estandarizador Documental TSF: transforma Word y PDF a Word corporativo directamente en tu navegador.">
+  <title>Estandarizador Documental TSF | Word</title>
+  <link rel="icon" href="assets/tsf_logo.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="vendor/jszip.min.js"></script>
+  <!-- PDF.js se emplea únicamente para extraer el texto dentro del navegador; el PDF no se envía a ningún servidor. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <img class="brand-logo" src="assets/tsf_logo.png" alt="TOTAL Servicios Financieros" width="170">
+      <div class="brand-text"><strong>Estandarizador Documental</strong><span>Herramienta corporativa TSF</span></div>
+      <div class="topbar-status"><span class="online-dot"></span> Sin servidor de procesamiento</div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="heading" aria-labelledby="hero-title">
+      <span class="eyebrow"><span class="eyebrow-dot"></span> ESTANDARIZACIÓN DOCUMENTAL</span>
+      <h1 id="hero-title">Un mismo estándar. <span>En cada documento.</span></h1>
+      <p>Transforma tu documento al formato institucional de TOTAL. Completa los datos esenciales y descarga directamente el archivo Word.</p>
+      <div class="pills"><span>Word editable</span><span>Sin registro</span><span>Sin almacenamiento en servidor</span></div>
+    </section>
+
+    <form id="standard-form" novalidate>
+      <section class="panel" aria-labelledby="s1">
+        <div class="panel-title"><span class="step">01</span><div><h2 id="s1">Documento original</h2><p>Selecciona un archivo para estandarizar.</p></div></div>
+        <label class="dropzone" id="dropzone" for="source-file">
+          <input id="source-file" type="file" accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+          <span class="upload-symbol" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+          <span class="upload-info"><strong>Arrastra tu archivo o selecciónalo</strong><small>Formato Word (.docx) o PDF digital · Máximo 25 MB</small><span id="filename">Ningún archivo seleccionado</span></span>
+          <span class="choose-file">Seleccionar archivo</span>
+        </label>
+      </section>
+
+      <section class="panel" aria-labelledby="s2">
+        <div class="panel-title"><span class="step">02</span><div><h2 id="s2">Información del documento</h2><p>Completa únicamente los datos que aparecerán en la portada.</p></div></div>
+        <div class="fields">
+          <div class="field"><label for="doc-type">Tipo documental <em>*</em></label><select id="doc-type" required><option value="">Selecciona una opción</option><option>Política</option><option>Procedimiento</option><option>Manual</option><option>Instructivo</option><option>Reglamento</option><option>Otro</option></select></div>
+          <div class="field"><label for="doc-name">Nombre del documento <em>*</em></label><input id="doc-name" type="text" maxlength="180" placeholder="Ej. Procedimiento de gestión operativa" required></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="s3">
+        <div class="panel-title"><span class="step">03</span><div><h2 id="s3">Responsables</h2><p>Elaborador y revisor son obligatorios; aprobador es opcional.</p></div></div>
+        <div class="fields fields-three">
+          <div class="field"><label for="author">Elaborador <em>*</em></label><input id="author" type="text" maxlength="120" placeholder="Nombre y/o cargo" required></div>
+          <div class="field"><label for="reviewer">Revisor <em>*</em></label><input id="reviewer" type="text" maxlength="120" placeholder="Nombre y/o cargo" required></div>
+          <div class="field"><label for="approver">Aprobador <span class="optional">OPCIONAL</span></label><input id="approver" type="text" maxlength="120" placeholder="Nombre y/o cargo"></div>
+        </div>
+      </section>
+
+      <section class="submit-panel" aria-labelledby="s4">
+        <div class="result-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2h8l5 5v15H4V2h3z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8"/></svg></div>
+        <div class="submit-description"><h2 id="s4">Tu documento, listo para descargar</h2><p>Salida exclusiva: archivo <b>.docx</b> editable.</p></div>
+        <button type="submit" class="primary" id="generate"><span id="btn-label">Generar Word</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M4 16v4h16v-4"/></svg></button>
+      </section>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    </form>
+    <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Los documentos se procesan en este navegador; no se envían a GitHub ni a un servidor de procesamiento. Los PDF escaneados no cuentan con reconocimiento OCR.</span></div>
+  </main>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF · GitHub Pages</footer>
+</body>
+</html>

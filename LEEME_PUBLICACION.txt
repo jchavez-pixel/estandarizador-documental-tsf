@@ -1,0 +1,74 @@
+ESTANDARIZADOR DOCUMENTAL TSF — GITHUB PAGES — SOLO WORD
+
+Este paquete contiene la versión estática que se ejecuta en el navegador.
+No utiliza Python, FastAPI, Cloudflare Tunnel ni Microsoft Word en el servidor.
+
+ARCHIVOS QUE DEBES SUBIR A LA RAÍZ DEL REPOSITORIO
+- index.html
+- app.js
+- styles.css
+- .nojekyll
+- assets/tsf_logo.png
+- vendor/jszip.min.js
+- vendor/JSZIP_LICENSE.md
+- LEEME_PUBLICACION.txt (opcional)
+
+PASOS PARA PUBLICAR EN TU REPOSITORIO EXISTENTE
+1. Entra a https://github.com/jchavez-pixel/estandarizador-documental-tsf
+2. Selecciona Add file > Upload files.
+3. Descomprime TSF_GitHub_Pages_SOLO_WORD.zip en tu computadora.
+4. Arrastra LOS ARCHIVOS Y CARPETAS INTERNOS (no el ZIP ni la carpeta contenedora).
+5. Pulsa Commit changes.
+6. Abre Settings > Pages.
+7. En Build and deployment, elige Source: Deploy from a branch.
+8. Branch: main. Folder: / (root). Haz clic en Save.
+9. Cuando GitHub indique que se publicó, abre:
+   https://jchavez-pixel.github.io/estandarizador-documental-tsf/
+
+No es necesario borrar app.py ni requirements.txt. GitHub Pages usará index.html.
+
+CAMPOS DEL FORMULARIO
+- Archivo Word (.docx) o PDF digital: obligatorio
+- Tipo documental: obligatorio
+- Nombre del documento: obligatorio
+- Elaborador: obligatorio
+- Revisor: obligatorio
+- Aprobador: opcional
+
+SALIDA
+Únicamente un archivo .docx descargable, sin ZIP y sin PDF de salida.
+
+FUNCIONALIDAD Y LIMITACIONES
+- Word .docx: conserva el cuerpo fuente (texto, tablas, imágenes/partes del paquete)
+  y agrega portada institucional, encabezado, pie de página y formato. La portada
+  original, si existe, no se borra por criterio de conservación. Por ello podría
+  coexistir con la portada nueva.
+- PDF digital: reconstruye texto seleccionable como un Word editable. La
+  distribución de tablas, columnas, imágenes y gráficos puede cambiar, o no
+  reconstruirse completamente. Revisar antes de usar como documento oficial.
+- PDF escaneado: NO DISPONIBLE; no hay OCR.
+- Límite por archivo: 25 MB; PDF: 120 páginas como máximo.
+- No se envía ni almacena el documento en GitHub Pages ni se usa un servidor Python.
+  La aplicación descarga PDF.js 3.11.174 desde jsDelivr, un proveedor de recursos
+  JavaScript: si el navegador no puede acceder al CDN, no se puede convertir PDF.
+- Toda la manipulación del contenido ocurre en el navegador del usuario.
+- Para publicar en producción verificar contenido y aprobaciones. El estándar
+  visual no implica aprobación o vigencia del documento.
+
+TECNOLOGÍA
+- GitHub Pages: alojamiento de la interfaz estática.
+- JavaScript ES2022: transformación en navegador.
+- JSZip 3.10.1: lectura/edición/generación de paquetes DOCX, incluida con el sitio.
+- PDF.js 3.11.174: lectura de PDFs digitales, cargada desde jsDelivr.
+
+PRUEBAS REALIZADAS
+- Interfaz comprobada en Chromium local: sin errores JavaScript.
+- DOCX real (12 tablas, 607 nodos de texto): 607/607 fragmentos
+  originales preservados en el mismo orden; archivo .docx abierto y renderizado.
+- PDF -> DOCX: motor de exportación probado con una fuente de extracción simulada;
+  el PDF.js real debe validarse tras publicar en GitHub Pages.
+
+NOTA DE SEGURIDAD
+Esta aplicación es de acceso público. No requiere iniciar sesión. La privacidad
+se basa en procesamiento local. Los navegadores descargan bibliotecas JavaScript
+según las URLs declaradas en el archivo index.html y app.js.
