@@ -100,23 +100,16 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
         <label class="dropzone" id="dropzone" for="source-file">
           <input id="source-file" type="file" accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
           <span class="upload-symbol" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
-          <span class="upload-info"><strong>Arrastra tu archivo o selecciónalo</strong><small>Word (.docx) o PDF (.pdf) · Conversión inteligente con 2 modalidades · Máximo 25 MB</small><span id="filename">Ningún archivo seleccionado</span></span>
+          <span class="upload-info"><strong>Arrastra tu archivo o selecciónalo</strong><small>Word (.docx) o PDF con texto seleccionable · Word editable · Máximo 25 MB</small><span id="filename">Ningún archivo seleccionado</span></span>
           <span class="choose-file">Seleccionar archivo</span>
         </label>
       </section>
 
 
       <section class="panel" id="pdf-mode-panel" aria-labelledby="pdf-mode-title" hidden>
-        <div class="panel-title"><span class="step">PDF</span><div><h2 id="pdf-mode-title">Cómo convertir este PDF</h2><p>Elige entre editabilidad y conservación visual de la estructura original.</p></div></div>
-        <div class="pdf-options" role="radiogroup" aria-label="Modo de conversión del PDF">
-          <label class="pdf-opt" for="pdf-editable"><input id="pdf-editable" type="radio" name="pdf_mode" value="editable">
-            <span><strong>Reconstrucción editable</strong><small>Recupera textos y trata de recrear tablas por coordenadas. Puede necesitar ajustes; los gráficos no se conservan íntegramente.</small></span>
-          </label>
-          <label class="pdf-opt" for="pdf-visual"><input id="pdf-visual" type="radio" name="pdf_mode" value="visual" checked>
-            <span><strong>Fidelidad visual (recomendada para PDF complejos)</strong><small>Conserva páginas, tablas, imágenes y diagramas con el mismo aspecto. El archivo es Word, pero el contenido de esas páginas es una imagen no editable.</small></span>
-          </label>
-        </div>
-        <div class="pdf-hint" id="pdf-hint">Recomendación: utiliza fidelidad visual para políticas antiguas con tablas, firmas o gráficos. Utiliza reconstrucción editable solo si necesitas modificar el texto.</div>
+        <div class="panel-title"><span class="step">PDF</span><div><h2 id="pdf-mode-title">Reconstrucción de PDF editable</h2><p>Análisis geométrico de líneas, celdas, títulos y páginas horizontales.</p></div></div>
+        <div class="pdf-hint" role="note"><strong>Solo Word editable:</strong> el motor intenta convertir tablas reales, con celdas editables, sin pegar páginas como imágenes. Figuras y diagramas originalmente gráficos pueden conservarse como figuras individuales. Si detecta una pérdida estructural importante, bloquea la descarga y solicita revisar el PDF original.</div>
+        <div id="pdf-check" class="pdf-hint" style="margin-top:8px;display:none" aria-live="polite"></div>
       </section>
       <section class="panel" aria-labelledby="s2">
         <div class="panel-title"><span class="step">02</span><div><h2 id="s2">Información del documento</h2><p>Completa únicamente los datos que aparecerán en la portada.</p></div></div>
@@ -137,14 +130,14 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
 
       <section class="submit-panel" aria-labelledby="s4">
         <div class="result-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2h8l5 5v15H4V2h3z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8"/></svg></div>
-        <div class="submit-description"><h2 id="s4">Tu documento, listo para descargar</h2><p>Salida exclusiva: Word (.docx). En modo PDF visual, las páginas se conservan como imágenes no editables.</p></div>
+        <div class="submit-description"><h2 id="s4">Tu documento, listo para descargar</h2><p>Salida exclusiva: Word (.docx) con texto y tablas editables; se validan los PDF antes de descargar.</p></div>
         <button type="submit" class="primary" id="generate"><span id="btn-label">Generar Word</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M4 16v4h16v-4"/></svg></button>
       </section>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     </form>
-    <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Los documentos se procesan en este navegador; no se envían a GitHub ni a un servidor de procesamiento. Los archivos se procesan localmente en tu navegador. PDF editable: la reconstrucción de tablas y textos puede requerir corrección. PDF visual: las páginas se insertan como imágenes dentro de un Word (no editables). No se incluye OCR.</span></div>
+    <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Los documentos se procesan localmente en tu navegador y no se envían a GitHub ni a servidores de conversión. No se incluye OCR; los PDF escaneados se rechazan. Las tablas se generan editables cuando es posible. Si el PDF presenta componentes que el motor no puede recuperar con seguridad, se muestra el problema y se solicita revisión.</span></div>
   </main>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.7 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.8 · GitHub Pages</footer>
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -164,7 +157,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 <script>
 const TSF_LOGO_B64='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';
 /*
-  Estandarizador Documental TSF v1.7 · GitHub Pages (solo Word)
+  Estandarizador Documental TSF v1.8 · GitHub Pages (solo Word)
   Todo el procesamiento sucede en el navegador. No existen llamadas POST ni APIs de almacenamiento.
   JSZip: licencia MIT/GPL-3.0 — https://stuk.github.io/jszip/
   PDF.js: licencia Apache-2.0 — https://mozilla.github.io/pdf.js/
@@ -295,7 +288,7 @@ function infoTable(meta){
  const value=(k)=>meta.source?.[k]||'-';
  const d=[
   ['Código',meta.code||'-','Documento',meta.type==='Procedimiento'?'Procedimiento operativo':meta.type],
-  ['Versión','01','Antecedente',value('antecedente')],
+  ['Versión',meta.source?.version||('Versión '+(meta.version||'01')),'Antecedente',value('antecedente')],
   ['Área custodio',value('area'),'Macroproceso',value('macroproceso')],
   ['Proceso',value('proceso'),'Subproceso',value('subproceso')],
   ['Estado',value('estado'),'Alcance',value('alcance')]
@@ -313,7 +306,7 @@ function approvalTable(meta){
 function historyTable(meta){
  return tableXml([
   ['Versión','Fecha de aprobación','Fecha de vigencia','Motivo del cambio'].map(x=>({text:x})),
-  [{text:'01',center:true},{text:meta.source?.histAprobacion||'-',center:true},{text:meta.source?.histVigencia||'-',center:true},{text:meta.source?.histMotivo||'-'}]
+  [{text:meta.version||'01',center:true},{text:meta.source?.histAprobacion||'-',center:true},{text:meta.source?.histVigencia||'-',center:true},{text:meta.source?.histMotivo||'-'}]
  ],[1000,2350,2200,3550],{header:true});
 }
 function sectionLabel(text,{black=false}={}){
@@ -339,7 +332,7 @@ function headerXml(meta){
  const tbl=`<w:tbl><w:tblPr><w:tblW w:w="9150" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:bottom w:val="single" w:sz="11" w:color="F5BD00"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="2080"/><w:gridCol w:w="4800"/><w:gridCol w:w="2270"/></w:tblGrid><w:tr>
  <w:tc><w:tcPr><w:tcW w:w="2080" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:spacing w:after="15"/></w:pPr>${imageMarkup('rIdTSFLogoHeader',{cx:1135000,cy:258000,id:1299})}</w:p></w:tc>
  <w:tc><w:tcPr><w:tcW w:w="4800" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>${run(headerText,{bold:true,color:'4B515C',sz:16})}</w:p></w:tc>
- <w:tc><w:tcPr><w:tcW w:w="2270" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>${run('Código: '+(meta.code||'-'),{bold:true,color:'424751',sz:15})}</w:p><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>${run('Versión: 01',{color:'555E69',sz:15})}</w:p></w:tc></w:tr></w:tbl>`;
+ <w:tc><w:tcPr><w:tcW w:w="2270" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>${run('Código: '+(meta.code||'-'),{bold:true,color:'424751',sz:15})}</w:p><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>${run('Versión: '+(meta.version||'01'),{color:'555E69',sz:15})}</w:p></w:tc></w:tr></w:tbl>`;
  return `${xmlDeclaration}<w:hdr ${namespaceString}>${tbl}<w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p></w:hdr>`;
 }
 function footerXml(){
@@ -406,7 +399,7 @@ function detectHeading(par){
 function getTextFromBody(el){return Array.from(el.getElementsByTagNameNS(NS.w,'t')).map(n=>n.textContent||'').join('').trim();}
 function findSourceMetadata(doc){
  const source={}; const aliases={
-  'codigo':'code','area custodio':'area','area custodia':'area','macroproceso':'macroproceso',
+  'codigo':'code','version':'version','area custodio':'area','area custodia':'area','macroproceso':'macroproceso',
   'proceso':'proceso','subproceso':'subproceso','estado':'estado',
   'alcance':'alcance','antecedente':'antecedente'
  };
@@ -416,7 +409,7 @@ function findSourceMetadata(doc){
    const cs=childrenNS(tr,'tc').map(getTextFromBody);
    for(let i=0;i+1<cs.length;i+=2){
     const k=aliases[normal(cs[i])];
-    if(k&&!source[k]&&cs[i+1]&&cs[i+1]!=='-')source[k]=cs[i+1];
+    if(k&&!source[k]&&cs[i+1]&&cs[i+1]!=='-' && (k!=='version'||/^(?:Versi[oó]n\s*)?[0-9]{1,2}(?:\s|$|[·.-])/i.test(cs[i+1])))source[k]=cs[i+1];
    }
   }
  }
@@ -621,7 +614,8 @@ async function patchPackage(zip,meta,{newDoc=false,bodyXml='' }={}){
   if(!Array.from(root.getElementsByTagNameNS(NS.rel,'Relationship')).some(el=>el.getAttribute('Type')?.endsWith('/styles'))){addRel(rels,root,uniqueRelId(rels,'rIdTSFStyles'),'styles','styles.xml');}
 
   // Se reconocen datos presentes en el original, no se inventan.
-  meta.source=findSourceMetadata(document);
+  meta.source={...(meta.source||{}),...findSourceMetadata(document)};
+  if(!meta.version){const v=(meta.source.version||'').match(/(?:Versi[oó]n\s*)?([0-9]{1,2})(?![0-9])/i);meta.version=v?v[1].padStart(2,'0'):'01';}
   if(!meta.code)meta.code=meta.source.code||'-';
   const legacyFrontMatter=normalizeBodyContent(document);
   const protectedBodyTables=JSON.stringify(tableMatrix(document));
@@ -838,99 +832,427 @@ function reconstructPdfPage(lines,base){
   flush();
   return {xml:rows.join(''),tableCount};
 }
+/* TSF v1.8 — Motor estructural PDF.js. Sin imágenes de página completa. */
+const TSF_PDF_LIMIT_PAGES = 85;
+const TSF_PDF_HEADER_PT = 68;
+const TSF_PDF_FOOTER_PT = 62;
+function tsfCoordGroups(values,tol=2){
+ const groups=[];
+ for(const n of values.filter(Number.isFinite).sort((a,b)=>a-b)){
+   const g=groups[groups.length-1];
+   if(g&&Math.abs(n-g.mean)<tol){g.sum+=n;g.n++;g.mean=g.sum/g.n;}
+   else groups.push({mean:n,sum:n,n:1});
+ }
+ return groups;
+}
+function tsfMult(A,B){return [A[0]*B[0]+A[2]*B[1],A[1]*B[0]+A[3]*B[1],A[0]*B[2]+A[2]*B[3],A[1]*B[2]+A[3]*B[3],A[0]*B[4]+A[2]*B[5]+A[4],A[1]*B[4]+A[3]*B[5]+A[5]];}
+function tsfPt(m,x,y){return [m[0]*x+m[2]*y+m[4],m[1]*x+m[3]*y+m[5]];}
+function tsfPrimitives(ops,width,height){
+ const h=[],v=[],images=[],o=pdfjsLib.OPS||{};
+ let ctm=[1,0,0,1,0,0], stack=[];
+ const emit=(a,b)=>{
+   const x1=Math.min(a[0],b[0]),x2=Math.max(a[0],b[0]);
+   const y1=Math.min(a[1],b[1]),y2=Math.max(a[1],b[1]);
+   if(![x1,x2,y1,y2].every(Number.isFinite))return;
+   if(y2-y1<1.9&&x2-x1>12 && y1>TSF_PDF_FOOTER_PT && y1<height-TSF_PDF_HEADER_PT)h.push({x1,x2,y:(y1+y2)/2});
+   if(x2-x1<1.9&&y2-y1>6 && x1>20&&x1<width-15)v.push({x:(x1+x2)/2,y1,y2});
+ };
+ const fs=ops?.fnArray||[],args=ops?.argsArray||[];
+ const imageOps=new Set([o.paintImageXObject,o.paintJpegXObject,o.paintInlineImageXObject].filter(x=>x!==undefined));
+ for(let i=0;i<fs.length;i++){
+   const fn=fs[i], ar=args[i]||[];
+   if(fn===o.save){stack.push(ctm.slice());continue;}
+   if(fn===o.restore){ctm=stack.pop()||[1,0,0,1,0,0];continue;}
+   if(fn===o.transform){if(ar.length===6)ctm=tsfMult(ctm,ar);continue;}
+   if(imageOps.has(fn)){
+     const corners=[[0,0],[0,1],[1,0],[1,1]].map(p=>tsfPt(ctm,...p));
+     const xs=corners.map(p=>p[0]),ys=corners.map(p=>p[1]);
+     const box={left:Math.min(...xs),right:Math.max(...xs),bottom:Math.min(...ys),top:Math.max(...ys)};
+     if(box.right-box.left>width*.25&&box.top-box.bottom>height*.075 && box.bottom>TSF_PDF_FOOTER_PT && box.top<height-TSF_PDF_HEADER_PT)images.push(box);
+   }
+   if(fn!==o.constructPath)continue;
+   const commands=ar[0]||[],coordinates=ar[1]||[];let k=0,first=null,last=null;
+   for(const cmd of commands){
+     if(cmd===o.rectangle){
+       const x=coordinates[k++],y=coordinates[k++],w=coordinates[k++],ht=coordinates[k++];
+       const a=tsfPt(ctm,x,y),b=tsfPt(ctm,x+w,y+ht),xx=Math.abs(b[0]-a[0]),yy=Math.abs(b[1]-a[1]);
+       if(xx<1.9||yy<1.9)emit(a,b);
+       last=null;first=null;
+     }else if(cmd===o.moveTo){last=tsfPt(ctm,coordinates[k++],coordinates[k++]);first=last;}
+     else if(cmd===o.lineTo){const q=tsfPt(ctm,coordinates[k++],coordinates[k++]);if(last)emit(last,q);last=q;}
+     else if(cmd===o.closePath){if(last&&first)emit(last,first);last=first;}
+     else if(cmd===o.curveTo){k+=6;last=null;}
+     else if(cmd===o.curveTo2||cmd===o.curveTo3){k+=4;last=null;}
+   }
+ }
+ return {h,v,images};
+}
+function tsfPdfItems(items,width,height){
+ return items.filter(a=>typeof a.str==='string'&&a.str.trim()&&Array.isArray(a.transform)).map((a,index)=>{
+   const x=a.transform[4]||0,y=a.transform[5]||0,w=Math.max(0,a.width||0);
+   return {index,str:safeSpaces(a.str),x,y,width:w,size:Math.abs(a.transform[3]||a.height||9),fontName:a.fontName||''};
+ }).filter(a=>a.y>TSF_PDF_FOOTER_PT && a.y<height-TSF_PDF_HEADER_PT && a.x>=0 && a.x<width+5);
+}
+function tsfRegions(h,v,width,height){
+ // Word/PDF exporta frecuentemente cada segmento horizontal por celda, no una
+ // sola línea de ancho completo. Primero unimos las líneas contiguas por altura.
+ const merged=[];
+ const yBands=tsfCoordGroups(h.map(z=>z.y),1.7);
+ for(const band of yBands){
+   const row=h.filter(z=>Math.abs(z.y-band.mean)<1.65).sort((a,b)=>a.x1-b.x1);
+   const spans=[];
+   for(const line of row){
+     const prev=spans[spans.length-1];
+     if(prev && line.x1<=prev.x2+2.5){prev.x2=Math.max(prev.x2,line.x2);}
+     else spans.push({x1:line.x1,x2:line.x2,y:band.mean});
+   }
+   merged.push(...spans.filter(z=>z.x2-z.x1>width*.20));
+ }
+ const bySpan=new Map();
+ for(const line of merged){
+   const key=`${Math.round(line.x1/5)}:${Math.round(line.x2/5)}`;
+   if(!bySpan.has(key))bySpan.set(key,[]);
+   bySpan.get(key).push(line);
+ }
+ const candidates=[];
+ for(const lines of bySpan.values()){
+   const bands=tsfCoordGroups(lines.map(x=>x.y),1.7).map(g=>g.mean).sort((a,b)=>b-a);
+   if(bands.length<3)continue;
+   let segment=[];
+   const push=()=>{
+     if(segment.length<3||segment[0]-segment[segment.length-1]<21)return;
+     const left=lines.reduce((s,l)=>s+l.x1,0)/lines.length,right=lines.reduce((s,l)=>s+l.x2,0)/lines.length;
+     const top=segment[0],bottom=segment[segment.length-1];
+     const vg=tsfCoordGroups(v.filter(q=>q.x>=left-2&&q.x<=right+2&&q.y2>bottom&&q.y1<top).map(q=>q.x),2.4);
+     const cands=vg.filter(g=>g.n>=2).map(g=>g.mean);
+     const cols=tsfCoordGroups([left,right,...cands],2.2).map(g=>g.mean).sort((a,b)=>a-b);
+     if(cols.length<3||cols.length>22)return;
+     if(cols.some((x,i)=>i&&x-cols[i-1]<5))return;
+     candidates.push({left,right,top,bottom,ys:segment.slice(),cols,confidence:'cuadrícula geométrica'});
+   };
+   for(const y of bands){
+     if(segment.length){
+       const old=segment[segment.length-1],gap=old-y;
+       const bridging=v.some(x=>x.x>lines[0].x1+2 && x.x<lines[0].x2-2 && x.y1<y+2 && x.y2>old-2);
+       if(gap>230||(gap>65&&!bridging)){push();segment=[];}
+     }
+     segment.push(y);
+   }
+   push();
+ }
+ candidates.sort((a,b)=>(b.top-b.bottom)*(b.cols.length-1)-(a.top-a.bottom)*(a.cols.length-1));
+ const result=[];
+ for(const c of candidates){
+   if(result.some(a=>Math.max(0,Math.min(a.top,c.top)-Math.max(a.bottom,c.bottom))>Math.min(a.top-a.bottom,c.top-c.bottom)*.4))continue;
+   result.push(c);
+ }
+ return result.sort((a,b)=>b.top-a.top);
+}
+function tsfSplitTableRegion(region,items,v){
+ const out=[];let begin=0;
+ const make=(start,end)=>{
+   if(end-start<2)return;
+   const ys=region.ys.slice(start,end+1),top=ys[0],bottom=ys[ys.length-1];
+   const vx=tsfCoordGroups(v.filter(q=>q.x>=region.left-1&&q.x<=region.right+1&&q.y2>bottom&&q.y1<top).map(q=>q.x),2.3).filter(g=>g.n>=2).map(g=>g.mean);
+   const cols=tsfCoordGroups([region.left,region.right,...vx],2.2).map(g=>g.mean);
+   if(cols.length<3 || cols.length>22)return;
+   out.push({...region,ys,cols,top,bottom});
+ };
+ for(let i=0;i<region.ys.length-1;i++){
+   const high=region.ys[i],low=region.ys[i+1];
+   const rowItems=items.filter(a=>a.y<=high+.5&&a.y>low+.1&&a.x>=region.left-2&&a.x<region.right+3);
+   const rowText=rowItems.map(q=>q.str).join(' ');
+   const empty=rowItems.length===0;
+   const heading=/^\s*CONTROL DE CAMBIOS\b|^\s*ANTECEDENTES DE APROBACI[ÓO]N/i.test(rowText) && rowText.length<100;
+   if(empty||heading){make(begin,i);begin=i+1;}
+ }
+ make(begin,region.ys.length-1);
+ return out.length?out:[region];
+}
+function tsfCellText(items){
+ if(!items.length)return '';
+ const lines=tsfCoordGroups(items.map(a=>a.y),2.5).map(g=>({y:g.mean,chars:[]}));
+ for(const a of items){let best=lines.reduce((p,q)=>Math.abs(q.y-a.y)<Math.abs(p.y-a.y)?q:p);best.chars.push(a);}
+ return lines.sort((a,b)=>b.y-a.y).map(l=>{
+   const cells=l.chars.sort((a,b)=>a.x-b.x);
+   let txt='',prev=null;
+   for(const a of cells){
+     const gap=prev?a.x-prev.x-prev.width:0;
+     if(prev&&gap>1.4 && !/\s$/.test(txt) && !/^\s/.test(a.str))txt+=' ';
+     txt+=a.str;prev=a;
+   }
+   return txt.trim();
+ }).filter(Boolean).join('\n');
+}
+function tsfTableData(region,items,v){
+ const allRows=[];const consumed=new Set();
+ for(let r=0;r<region.ys.length-1;r++){
+   const top=region.ys[r],bottom=region.ys[r+1];
+   const rowItems=items.filter(a=>a.y<=top+.5&&a.y>bottom+.1 && a.x>=region.left-2&&a.x<region.right+3);
+   const breaks=[0];
+   for(let c=1;c<region.cols.length-1;c++){
+     const x=region.cols[c];
+     const overlap=v.filter(l=>Math.abs(l.x-x)<2.3).reduce((sum,l)=>sum+Math.max(0,Math.min(top,l.y2)-Math.max(bottom,l.y1)),0);
+     const leftText=rowItems.some(a=>a.x<x-4),rightText=rowItems.some(a=>a.x>x+4);
+     const boundary=overlap>Math.max(1,(top-bottom)*.37) || (leftText&&rightText);
+     if(boundary)breaks.push(c);
+   }
+   breaks.push(region.cols.length-1);
+   const cells=[];
+   for(let j=0;j<breaks.length-1;j++){
+     const start=breaks[j],end=breaks[j+1],left=region.cols[start],right=region.cols[end];
+     const a=rowItems.filter(t=>t.x+t.width*.45>=left-2&&t.x+t.width*.45<right+2);
+     a.forEach(x=>consumed.add(x.index));
+     cells.push({text:tsfCellText(a),span:end-start});
+   }
+   allRows.push(cells);
+ }
+ return {allRows,consumed};
+}
+function tsfTableXml(region,data,landscape=false){
+ const cols=region.cols,tot=landscape?13700:9110;
+ const distance=cols[cols.length-1]-cols[0];
+ const widths=cols.slice(1).map((x,i)=>Math.max(100,Math.round((x-cols[i])/distance*tot)));
+ widths[widths.length-1]+=tot-widths.reduce((a,b)=>a+b,0);
+ const grid=widths.map(w=>`<w:gridCol w:w="${w}"/>`).join('');
+ const rows=data.allRows.map((cells,i)=>{
+   const header=i===0&&cells.filter(c=>c.text).length>=2;
+   return `<w:tr>${cells.map(c=>{
+     const shade=header?'F5BD00':i%2?'FFFFFF':'F8F9FB';
+     let xml=`<w:tc><w:tcPr><w:tcW w:w="${widths.slice(cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0),cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0)+c.span).reduce((a,b)=>a+b,0)}" w:type="dxa"/>`;
+     if(c.span>1)xml+=`<w:gridSpan w:val="${c.span}"/>`;
+     xml+=`<w:shd w:fill="${shade}"/><w:vAlign w:val="center"/><w:tcMar><w:top w:w="40" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:start w:w="70" w:type="dxa"/><w:end w:w="70" w:type="dxa"/></w:tcMar></w:tcPr>`;
+     xml+=(c.text||'').split('\n').map(t=>`<w:p><w:pPr><w:spacing w:after="0" w:line="210" w:lineRule="auto"/></w:pPr>${run(t,{bold:header,sz:landscape?15:17})}</w:p>`).join('')||'<w:p/>';
+     return xml+'</w:tc>';
+   }).join('')}</w:tr>`;
+ }).join('');
+ return `<w:tbl><w:tblPr><w:tblW w:w="${tot}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="single" w:sz="5" w:color="D2D6DD"/><w:bottom w:val="single" w:sz="5" w:color="D2D6DD"/><w:left w:val="single" w:sz="5" w:color="D2D6DD"/><w:right w:val="single" w:sz="5" w:color="D2D6DD"/><w:insideH w:val="single" w:sz="4" w:color="D2D6DD"/><w:insideV w:val="single" w:sz="4" w:color="D2D6DD"/></w:tblBorders></w:tblPr><w:tblGrid>${grid}</w:tblGrid>${rows}</w:tbl>`;
+}
+function tsfPdfParagraphs(items,base){
+ const rows=tsfCoordGroups(items.map(a=>a.y),2.4).map(g=>({y:g.mean,items:[]}));
+ for(const a of items){const g=rows.reduce((p,q)=>Math.abs(q.y-a.y)<Math.abs(p.y-a.y)?q:p);g.items.push(a);}
+ rows.sort((a,b)=>b.y-a.y);
+ const lines=rows.map(row=>{
+   const a=row.items.sort((p,q)=>p.x-q.x),text=tsfCellText(a);
+   return {y:row.y,x:a[0]?.x||0,text,size:Math.max(...a.map(v=>v.size)),items:a};
+ }).filter(x=>x.text);
+ const paragraphs=[];let current=null;
+ const flush=()=>{if(current){paragraphs.push(current);current=null;}};
+ for(const line of lines){
+   const heading=headingFromPdf(line,base);
+   const bullet=/^\s*(?:[•●○◦\-–]|\d+[.)])\s/.test(line.text);
+   if(heading!=='TSFBody'||bullet){flush();paragraphs.push({text:line.text,style:heading,indent:bullet?220:0,source:[...line.items],y:line.y});continue;}
+   if(current){
+     const gap=current.lastY-line.y;
+     if(gap>0&&gap<base*1.9&&Math.abs(line.x-current.x)<18){
+       current.text+=(current.text.endsWith('-')?'':' ')+line.text;
+       current.source.push(...line.items);current.lastY=line.y;continue;
+     }
+   }
+   flush();current={text:line.text,style:'TSFBody',x:line.x,lastY:line.y,source:[...line.items],y:line.y};
+ }
+ flush();
+ return paragraphs;
+}
+function tsfSection(landscape){
+ const sz=landscape?'<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>':'<w:pgSz w:w="11906" w:h="16838"/>';
+ return `<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/>${sz}<w:pgMar w:top="1350" w:bottom="1350" w:left="1100" w:right="1100" w:header="440" w:footer="350"/></w:sectPr></w:pPr></w:p>`;
+}
+function tsfBlockHtmlXml(pBlock){
+ return pBlock.style==='TSFBody'?p(pBlock.text,'TSFBody',pBlock.indent?'<w:ind w:left="260" w:hanging="160"/>':'') : p(pBlock.text,pBlock.style);
+}
+function tsfPdfPlan(page,allItems,operatorList){
+ const height=page.view?.[3]||page.height||page.getViewport({scale:1}).height;
+ const width=page.view?.[2]||page.width||page.getViewport({scale:1}).width;
+ const items=tsfPdfItems(allItems,width,height);
+ const graphics=tsfPrimitives(operatorList,width,height);
+ const regions=tsfRegions(graphics.h,graphics.v,width,height);
+ return {items,graphics,regions,width,height,landscape:width>height};
+}
+function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
+ let items=plan.items;
+ // La portada y el índice originales se sustituyen por la portada e índice corporativos.
+ if(ignoreCover){
+   const marker=tsfPdfParagraphs(items,9).find(a=>/CAR[ÁA]CTER SITUACIONAL DEL PROCEDIMIENTO/i.test(a.text));
+   items=marker?items.filter(a=>a.y<=marker.y+5):[];
+ }
+ if(ignoreIndex)items=[];
+ const figureBoxes=plan.graphics.images.slice().sort((a,b)=>a.top-b.top);
+ const figures=[];
+ for(const b of figureBoxes){
+   const old=figures[figures.length-1];
+   if(old && b.bottom<=old.top+3 && b.top>=old.bottom-3 && Math.max(0,Math.min(old.right,b.right)-Math.max(old.left,b.left))>Math.min(old.right-old.left,b.right-b.left)*.6){
+     old.left=Math.min(old.left,b.left);old.right=Math.max(old.right,b.right);old.top=Math.max(old.top,b.top);old.bottom=Math.min(old.bottom,b.bottom);
+   }else figures.push({...b});
+ }
+ const excluded=new Set();
+ const tableBlocks=[];
+ for(const initialRegion of plan.regions){
+   if(ignoreCover||ignoreIndex)break;
+   for(const region of tsfSplitTableRegion(initialRegion,items,plan.graphics.v)){
+   const t=tsfTableData(region,items,plan.graphics.v);
+   if(t.consumed.size<2)continue;
+   const hasContent=t.allRows.some(row=>row.filter(c=>c.text).length>=2);
+   if(!hasContent)continue;
+   const cellWordCount=t.allRows.reduce((s,row)=>s+row.reduce((x,c)=>x+(c.text.match(/\S+/g)||[]).length,0),0);
+   if(cellWordCount<4)continue;
+   tableBlocks.push({kind:'table',y:region.top,region,data:t});
+   t.consumed.forEach(x=>excluded.add(x));
+   }
+ }
+ const imageBlocks=[];
+ for(const box of figures){
+   if(ignoreCover||ignoreIndex)break;
+   if(box.right-box.left<plan.width*.27||box.top-box.bottom<plan.height*.10)continue;
+   for(const a of items){if(a.y<box.top && a.y>box.bottom && a.x+a.width/2>box.left&&a.x+a.width/2<box.right)excluded.add(a.index);}
+   imageBlocks.push({kind:'figure',y:box.top,box});
+ }
+ const remaining=items.filter(a=>!excluded.has(a.index));
+ const paragraphs=tsfPdfParagraphs(remaining,Math.max(8,...remaining.map(x=>x.size).sort((a,b)=>a-b).slice(Math.floor(remaining.length/2),Math.floor(remaining.length/2)+1)));
+ const blocks=[...tableBlocks,...imageBlocks,...paragraphs.map(b=>({...b,kind:'paragraph'}))].sort((a,b)=>b.y-a.y);
+ const covered=new Set([...excluded,...paragraphs.flatMap(b=>b.source.map(a=>a.index))]);
+ const missing=items.filter(a=>!covered.has(a.index));
+ return {blocks,items,missing,tableCount:tableBlocks.length,figureCount:imageBlocks.length,regions:plan.regions.length};
+}
+
 function bufferFromBlob(blob){return blob.arrayBuffer();}
 async function canvasJpeg(canvas){
   const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('No se pudo convertir la página a imagen.')),'image/jpeg',.90));
   return await bufferFromBlob(blob);
 }
-async function pdfToDocxVisual(buffer,meta,onProgress){
-  await ensurePdfEngine();pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER;
-  const task=pdfjsLib.getDocument({data:new Uint8Array(buffer)});
-  let pdf;
-  try{pdf=await task.promise;}catch(e){throw Error('No se pudo abrir el PDF: '+e.message);}
-  if(pdf.numPages>45){await pdf.destroy();throw Error('En modo visual se admiten hasta 45 páginas por archivo. Divide el PDF en partes más pequeñas.');}
-  const body=[];const pages=[];
-  // One genuine section entry; do not misrepresent scanned images as editable text.
-  body.push(p('Reproducción del documento original', 'TSFH1'));
-  try{
-    for(let i=1;i<=pdf.numPages;i++){
-      onProgress(`Conservando página ${i} de ${pdf.numPages} en formato visual…`);
-      const page=await pdf.getPage(i);
-      const size=page.getViewport({scale:1});
-      const factor=Math.min(2,Math.sqrt(3_400_000/(size.width*size.height)));
-      const vp=page.getViewport({scale:Math.max(1,factor)});
-      const canvas=document.createElement('canvas');canvas.width=Math.floor(vp.width);canvas.height=Math.floor(vp.height);
-      const context=canvas.getContext('2d',{alpha:false});context.fillStyle='#FFFFFF';context.fillRect(0,0,canvas.width,canvas.height);
-      await page.render({canvasContext:context,viewport:vp}).promise;
-      const data=await canvasJpeg(canvas);
-      if(!data||!data.byteLength)throw Error(`La página ${i} no se pudo reproducir.`);
-      const maxCx=5500000,maxCy=(i===1?7440000:8050000);
-      const width=Math.min(maxCx,Math.floor(maxCy*vp.width/vp.height));
-      const height=Math.floor(width*vp.height/vp.width);
-      const id=`rIdTSFPdfPage${i}`;
-      body.push(`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="40" w:after="0"/></w:pPr>${imageMarkup(id,{cx:width,cy:height,id:2000+i})}</w:p>`);
-      if(i<pdf.numPages)body.push('<w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>');
-      pages.push({name:`tsf_pdf_page_${i}.jpg`,data,id});
-      canvas.width=0;canvas.height=0;page.cleanup();
-    }
-    const zip=blankDocxZip(body.join(''));
-    await patchPackage(zip,meta,{newDoc:true});
-    const relsPath='word/_rels/document.xml.rels';
-    const rels=xmlParse(await zip.file(relsPath).async('string'),'relaciones PDF');
-    const ct=xmlParse(await zip.file('[Content_Types].xml').async('string'),'tipos PDF');
-    const hasJpeg=Array.from(ct.documentElement.children).some(x=>x.getAttribute('Extension')==='jpg');
-    if(!hasJpeg){
-      const el=ct.createElementNS(NS.ct,'Default');el.setAttribute('Extension','jpg');el.setAttribute('ContentType','image/jpeg');ct.documentElement.appendChild(el);
-    }
-    for(const item of pages){
-      zip.file('word/media/'+item.name,item.data);
-      addRel(rels,rels.documentElement,item.id,'image','media/'+item.name);
-    }
-    zip.file(relsPath,xmlSave(rels));zip.file('[Content_Types].xml',xmlSave(ct));
-    const out=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:4},mimeType:DOCX_MIME});
-    const test=await JSZip.loadAsync(out);
-    if(pages.some(item=>!test.file('word/media/'+item.name)))throw Error('No se conservaron todas las imágenes de página.');
-    return {out,warnings:['Se conservó visualmente el PDF dentro de un archivo DOCX. Las páginas son imágenes: su texto y tablas NO son editables. Puedes añadir notas y contenido nuevo en Word.'], pages:pages.length};
-  }finally{try{await pdf.destroy();}catch(_){}}
+function tsfPdfMeta(plan,meta){
+ const key=k=>String(k).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/:$/,'');
+ const mapping={'codigo':'code','version':'version','antecedente':'antecedente','area custodio':'area','area custodia':'area','macroproceso':'macroproceso','proceso':'proceso','subproceso':'subproceso','estado':'estado','alcance':'alcance'};
+ meta.source=meta.source||{};
+ for(const region of plan.regions){
+   const rows=tsfTableData(region,plan.items,plan.graphics.v).allRows;
+   for(const row of rows){
+     for(let j=0;j+1<row.length;j++){
+       const k=mapping[key(row[j].text)];
+       const value=row[j+1]?.text?.trim();
+       if(k && value && value!=='-' && !meta.source[k] && (k!=='version'||/^(?:Versi[oó]n\s*)?[0-9]{1,2}(?:\s|$|[·.-])/i.test(value)))meta.source[k]=value;
+     }
+   }
+ }
+ const text=plan.items.map(a=>a.str).join(' ');
+ if(!meta.code){const code=(text.match(/C[oó]digo\s*:?\s*([A-Z]{2,6}[-_][A-Z0-9_-]{4,25})/i)||[])[1];if(code)meta.code=code;}
+ if(!meta.version){const ver=(meta.source.version||text.match(/Versi[oó]n\s*:?\s*[0-9]{1,2}/i)?.[0]||'').match(/([0-9]{1,2})(?![0-9])/);meta.version=ver?ver[1].padStart(2,'0'):'01';}
+}
+async function tsfRenderFigure(page,plan,box,n){
+ const scale=Math.min(2.2,Math.sqrt(2_750_000/(plan.width*plan.height)));
+ const viewport=page.getViewport({scale});
+ const canvas=document.createElement('canvas');canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);
+ const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,canvas.width,canvas.height);
+ await page.render({canvasContext:ctx,viewport}).promise;
+ const left=Math.max(0,Math.floor((box.left-2)*scale));
+ const top=Math.max(0,Math.floor((plan.height-box.top-2)*scale));
+ const w=Math.min(canvas.width-left,Math.ceil((box.right-box.left+4)*scale));
+ const h=Math.min(canvas.height-top,Math.ceil((box.top-box.bottom+4)*scale));
+ if(w<90||h<60)throw Error('No se pudo conservar una figura del PDF como elemento individual.');
+ const clip=document.createElement('canvas');clip.width=w;clip.height=h;
+ clip.getContext('2d').drawImage(canvas,left,top,w,h,0,0,w,h);
+ const blob=await new Promise((resolve,reject)=>clip.toBlob(x=>x?resolve(x):reject(Error('No se pudo conservar la figura del PDF.')),'image/jpeg',.90));
+ canvas.width=0;canvas.height=0;clip.width=0;clip.height=0;
+ const data=await blob.arrayBuffer();
+ const maxCx=plan.landscape?10100000:5550000;
+ const cx=Math.min(maxCx,Math.round((box.right-box.left)*12700));
+ const cy=Math.round(cx*h/w);
+ const id='rIdTSFFigure'+n;
+ return {data,id,name:'tsf_diagrama_'+n+'.jpg',xml:`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="95" w:after="95"/></w:pPr>${imageMarkup(id,{cx,cy,id:4300+n})}</w:p>`};
+}
+async function pdfToDocx(buffer,meta,onProgress){
+ await ensurePdfEngine();pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER;
+ const task=pdfjsLib.getDocument({data:new Uint8Array(buffer)});
+ let pdf;
+ try{pdf=await task.promise;}catch(e){throw Error('No se pudo abrir el PDF: '+e.message);}
+ if(pdf.numPages>TSF_PDF_LIMIT_PAGES){await pdf.destroy();throw Error('Este PDF tiene '+pdf.numPages+' páginas; el modo público admite hasta '+TSF_PDF_LIMIT_PAGES+'. Divide el documento y comprueba el resultado.');}
+ const body=[],figures=[],warnings=[],errors=[];
+ let tables=0,paragraphs=0,totalItems=0,matchedItems=0,landscapeCount=0;
+ let previousLandscape=false, sourceCover=false;
+ try{
+   for(let i=1;i<=pdf.numPages;i++){
+     onProgress('Analizando PDF '+i+'/'+pdf.numPages+': celdas, texto, páginas y figuras…');
+     const page=await pdf.getPage(i);
+     const txt=await page.getTextContent();
+     const operatorList=await page.getOperatorList();
+     const plan=tsfPdfPlan(page,txt.items,operatorList);
+     if(i===1){
+       tsfPdfMeta(plan,meta);
+       const firstPageText=plan.items.map(a=>a.str).join(' ').toUpperCase();
+       sourceCover=/INFORMACI[ÓO]N DEL DOCUMENTO/i.test(firstPageText)&&/HISTORIAL DE CAMBIOS/i.test(firstPageText);
+     }
+     const pageText=plan.items.map(a=>a.str).join(' ');
+     const ignoreCover=i===1&&sourceCover;
+     const ignoreIndex=i<=3&&/ÍNDICE/i.test(pageText)&&(/OBJETIVO/.test(pageText.toUpperCase())&&/ALCANCE/.test(pageText.toUpperCase()))&&!ignoreCover;
+     const extracted=tsfMakeBlocks(plan,ignoreCover,ignoreIndex);
+     if(extracted.missing.length){errors.push('Página '+i+': '+extracted.missing.length+' fragmentos de texto no asignados.');}
+     if(!ignoreCover&&!ignoreIndex&&plan.items.length<3){errors.push('Página '+i+': no se encontró texto seleccionable. Los PDF escaneados requieren OCR.');}
+     if(!ignoreCover&&!ignoreIndex&&plan.regions.length>0&&extracted.tableCount===0){
+       errors.push('Página '+i+': se detectó una cuadrícula de tabla, pero no fue posible reconstruir sus celdas con suficiente seguridad.');
+     }
+     if(extracted.regions>extracted.tableCount&&!ignoreCover&&!ignoreIndex){
+       warnings.push('Página '+i+': '+(extracted.regions-extracted.tableCount)+' zona(s) con estructura de tabla pendientes de revisión.');
+     }
+     if(plan.landscape)landscapeCount++;
+     if(plan.landscape!==previousLandscape && i>1){body.push(tsfSection(previousLandscape));}
+     previousLandscape=plan.landscape;
+     if(ignoreIndex || (ignoreCover&&!extracted.blocks.length)){
+       page.cleanup();continue;
+     }
+     if(ignoreCover&&extracted.blocks.length){
+       warnings.push('Página 1: portada reemplazada; se conservó el contenido operativo que aparecía después de la carátula.');
+     }
+     for(const b of extracted.blocks){
+       if(b.kind==='table'){body.push(tsfTableXml(b.region,b.data,plan.landscape));tables++;}
+       else if(b.kind==='paragraph'){body.push(tsfBlockHtmlXml(b));paragraphs++;}
+       else if(b.kind==='figure'){
+         const item=await tsfRenderFigure(page,plan,b.box,figures.length+1);
+         figures.push(item);body.push(item.xml);
+       }
+     }
+     totalItems+=extracted.items.length;matchedItems+=extracted.items.length-extracted.missing.length;
+     // Se preservan saltos de orientación y los PDF largos no se convierten en imágenes.
+     // Sin saltos de página forzados: Word redistribuye párrafos y tablas editables.
+
+     page.cleanup();
+   }
+   if(errors.length){
+     throw Error('Conversión detenida para evitar un Word incompleto: '+errors.slice(0,6).join(' ')+' Si tienes el DOCX original, úsalo para conservar las tablas.');
+   }
+   if(totalItems===0||matchedItems/totalItems<.995)throw Error('Se detectó pérdida de contenido. El Word no se generó para evitar entregar un documento incorrecto.');
+   if(!paragraphs&&!tables)throw Error('No se recuperó suficiente contenido editable del PDF.');
+   const zip=blankDocxZip(body.join(''));
+   await patchPackage(zip,meta,{newDoc:true});
+   if(landscapeCount){
+     const d=xmlParse(await zip.file('word/document.xml').async('string'));
+     const sects=by(d,'sectPr');const last=sects[sects.length-1];
+     if(last){let sz=firstNS(last,'pgSz');if(!sz){sz=node(d,'pgSz');last.appendChild(sz);}
+       sz.setAttributeNS(NS.w,'w:w',previousLandscape?'16838':'11906');sz.setAttributeNS(NS.w,'w:h',previousLandscape?'11906':'16838');
+       if(previousLandscape)sz.setAttributeNS(NS.w,'w:orient','landscape');else sz.removeAttributeNS(NS.w,'orient');
+     }
+     zip.file('word/document.xml',xmlSave(d));
+   }
+   if(figures.length){
+     const relsPath='word/_rels/document.xml.rels';
+     const rel=xmlParse(await zip.file(relsPath).async('string'));
+     const ct=xmlParse(await zip.file('[Content_Types].xml').async('string'));
+     const hasJpg=[...ct.documentElement.children].some(x=>x.getAttribute('Extension')==='jpg');
+     if(!hasJpg){const e=ct.createElementNS(NS.ct,'Default');e.setAttribute('Extension','jpg');e.setAttribute('ContentType','image/jpeg');ct.documentElement.appendChild(e);}
+     for(const item of figures){zip.file('word/media/'+item.name,item.data);addRel(rel,rel.documentElement,item.id,'image','media/'+item.name);}
+     zip.file(relsPath,xmlSave(rel));zip.file('[Content_Types].xml',xmlSave(ct));
+   }
+   const out=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:5},mimeType:DOCX_MIME});
+   const test=await JSZip.loadAsync(out);
+   if(!test.file('word/document.xml')||!test.file('word/headerTSF.xml'))throw Error('El paquete Word no superó la validación estructural.');
+   const check=xmlParse(await test.file('word/document.xml').async('string'));
+   const countTables=by(check,'tbl').length;
+   if(countTables<tables)throw Error('Faltan tablas editables en el Word resultante.');
+   const info='Se recuperaron '+tables+' tablas, '+paragraphs+' párrafos y '+figures.length+' figuras individuales; '+landscapeCount+' página(s) horizontales. La geometría de PDF no asegura una reproducción exacta de todas las celdas fusionadas: revisa el Word antes de aprobarlo.';
+   warnings.unshift(info);
+   return {out,warnings,stats:{tables,paragraphs,figures:figures.length,landscape:landscapeCount}};
+ }finally{try{await pdf.destroy();}catch(_){} }
 }
 
-async function pdfToDocx(buffer,meta,onProgress){
-  await ensurePdfEngine();pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER;
-  const task=pdfjsLib.getDocument({data:new Uint8Array(buffer)});
-  let pdf;
-  try{pdf=await task.promise;}catch(e){throw Error('No se pudo abrir el PDF: '+e.message);}
-  if(pdf.numPages>120){await pdf.destroy();throw Error('PDF demasiado extenso para este modo (máximo 120 páginas).');}
-  let body='',allChars=0,detectedTables=0;
-  const warnings=[];
-  try{
-    for(let i=1;i<=pdf.numPages;i++){
-      onProgress(`Analizando texto y estructura de página ${i} de ${pdf.numPages}…`);
-      const page=await pdf.getPage(i);const txt=await page.getTextContent();
-      const opList=await page.getOperatorList();
-      const risks=inspectPdfStructure(page,txt.items,opList);
-      if(risks.length){warnings.push(`Página ${i}: ${risks.join(', ')}.`);}
-      const lines=pdfLines(txt.items);
-      if(lines.reduce((sum,l)=>sum+l.text.trim().length,0)<5)throw Error(`La página ${i} no contiene texto seleccionable. Usa la modalidad “Fidelidad visual” para escaneos.`);
-      allChars+=lines.reduce((sum,l)=>sum+l.text.trim().length,0);
-      if(!meta.code){const hit=lines.map(x=>x.text).join(' ').match(/C[oó]digo\s*:?\s*([A-Z]{2,6}[-_][A-Z0-9_-]{4,25})/i);if(hit)meta.code=hit[1];}
-      const sizes=lines.map(l=>l.size).filter(x=>x>1).sort((a,b)=>a-b);
-      const base=sizes[Math.floor(sizes.length/2)]||10;
-      const blocks=reconstructPdfPage(lines,base);
-      detectedTables+=blocks.tableCount;
-      body+=blocks.xml;
-      if(i<pdf.numPages)body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
-      page.cleanup();
-    }
-    if(allChars<15)throw Error('No se detectó suficiente texto para reconstruir el PDF.');
-    const zip=blankDocxZip(body);
-    await patchPackage(zip,meta,{newDoc:true});
-    const out=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:5},mimeType:DOCX_MIME});
-    const test=await JSZip.loadAsync(out);
-    if(!test.file('word/document.xml'))throw Error('No se pudo validar el Word generado.');
-    warnings.unshift(`Reconstrucción editable aproximada. Tablas inferidas: ${detectedTables}. Verifica que todas las celdas estén en su columna. La posición exacta y las imágenes no están garantizadas.`);
-    return {out,warnings};
-  }finally{try{await pdf.destroy();}catch(_){}}
-}
 function cleanFileName(name){return (name||'Documento').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9 _-]/g,'').trim().replace(/\s+/g,'_').slice(0,85)||'Documento';}
 function showNotice(message,kind='success') {notice.hidden=false;notice.className='notice '+kind;notice.textContent=message;}
 function showFile(file) {
@@ -960,9 +1282,8 @@ form.addEventListener('submit',async e=>{
   try{
     if(ext==='pdf')showNotice('Analizando PDF. Los documentos con tablas, imágenes o columnas deben revisarse antes de aprobarse.','warning');
     const bytes=await f.arrayBuffer();
-    const mode=document.querySelector('input[name="pdf_mode"]:checked')?.value||'editable';
     const result=ext==='pdf'
-      ?(mode==='visual' ? await pdfToDocxVisual(bytes,meta,msg=>showNotice(msg)) : await pdfToDocx(bytes,meta,msg=>showNotice(msg)))
+      ?await pdfToDocx(bytes,meta,msg=>showNotice(msg))
       :await docxToDocx(bytes,meta);
     const outName=`${cleanFileName(meta.title)}_Estandarizado_TSF.docx`;
     saveDoc(result.out,outName);
