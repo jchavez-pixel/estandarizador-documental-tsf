@@ -1,0 +1,44 @@
+# Python y entornos virtuales
+.venv/
+.venv*/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Credenciales y archivos locales
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+
+# Archivos de usuarios y resultados de procesamiento
+*.pdf
+*.docx
+*.docm
+*.doc
+*.zip
+uploads/
+downloads/
+output/
+outputs/
+generated/
+temp/
+tmp/
+work/
+~$*
+
+# Registros y residuos
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
