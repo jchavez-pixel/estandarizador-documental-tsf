@@ -137,7 +137,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
     </form>
     <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Los documentos se procesan localmente en tu navegador y no se envían a GitHub ni a servidores de conversión. No se incluye OCR; los PDF escaneados se rechazan. Las tablas se generan editables cuando es posible. Si el PDF presenta componentes que el motor no puede recuperar con seguridad, se muestra el problema y se solicita revisión.</span></div>
   </main>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.10 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.11 · GitHub Pages</footer>
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -400,7 +400,9 @@ function detectHeading(par){
   if(/heading\s*1|titulo\s*1|título\s*1|(^|\D)h1($|\D)|tsfh1/.test(prior))return 'TSFH1';
   if(/heading\s*2|titulo\s*2|título\s*2|(^|\D)h2($|\D)|tsfh2/.test(prior))return 'TSFH2';
   if(/heading\s*3|titulo\s*3|título\s*3|(^|\D)h3($|\D)|tsfh3/.test(prior))return 'TSFH3';
-  const numbered=txt.match(/^(\d+(?:\.\d+){0,3})\.?\s+([A-Za-zÁÉÍÓÚÜÑ].{2,105})$/);
+  const roman=txt.match(/^([IVX]{1,6})\.\s+([A-Za-zÁÉÍÓÚÜÑ].{2,105})$/);
+  if(roman)return 'TSFH1';
+  const numbered=txt.match(/^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+([A-Za-zÁÉÍÓÚÜÑ].{2,105})$/);
   if(numbered){
     const lev=(numbered[1].match(/\./g)||[]).length;
     return lev===0?'TSFH1':(lev===1?'TSFH2':'TSFH3');
@@ -454,9 +456,18 @@ function removeRecognizedFrontmatter(doc){
  const coverSig=nodes.slice(0,25).some((n,i)=>/INFORMACI[ÓO]N DEL DOCUMENTO/.test(short(i)));
  const legacy=(idx>=0 && coverSig);
  if(!legacy)return;
- let firstBody=nodes.findIndex((n,i)=>i>idx && n.localName==='p' && /^1\.\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s./-]{3,}$/.test(getTextFromBody(n).trim()));
- if(firstBody<0)firstBody=nodes.findIndex((n,i)=>i>idx && n.localName==='p' && /^OBJETIVO$/i.test(getTextFromBody(n)));
-  if(firstBody<0)return false; // Ante dudas no se elimina nada.
+ let firstBody=-1;
+ for(let i=idx+1;i<nodes.length;i++){
+   const n=nodes[i]; if(n.localName!=='p')continue;
+   const v=getTextFromBody(n).trim();if(!v)continue;
+   const hasPageRef=by(n,'fldSimple').some(x=>/PAGEREF/i.test(W(x,'instr')));
+   if(hasPageRef)continue; // the current TSF index, not body text
+   // Native TOC entries can also be represented by a TOC paragraph style.
+   const st=firstNS(firstNS(n,'pPr')||n,'pStyle');
+   if(st && /^TOC\d*$/i.test(W(st,'val')))continue;
+   firstBody=i;break;
+ }
+ if(firstBody<0)return false; // When unsure, preserve everything.
   // Frente a comentarios o control de cambios en la antigua portada/índice,
   // no borrar NINGUNA pieza: habría pérdida de anotaciones o revisiones.
   const protectedTags=new Set(['ins','del','moveFrom','moveTo','commentReference','commentRangeStart','commentRangeEnd',
@@ -471,25 +482,35 @@ function removeRecognizedFrontmatter(doc){
   }
   return true;
 }
+function tsfOutlineNumber(text){
+  // Only semantic heading prefixes, not accounting codes (e.g. 250703) or table rows.
+  const m=String(text||'').trim().match(/^(?:([IVX]{1,6})\.|(\d{1,2}(?:\.\d{1,2}){0,3})\.?)\s+([A-Za-zÁÉÍÓÚÜÑ][^\n]{2,125})$/i);
+  if(!m)return null;
+  if(m[1] && !/^(?:I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|XVII|XVIII|XIX|XX)$/.test(m[1]))return null;
+  const rest=m[3];
+  if(rest.length>118||(!m[1]&&!m[2].includes('.') && (/^(?:Tributos?|Crédito|Débito|Cuenta|Obligaciones|moneda|Ninguna)\b/i.test(rest)||/(?:[<>]=?|%|\bDéficit\b|\bHasta\b|\bPE\b)/i.test(rest))))return null;
+  const level=m[1]?1:(m[2].split('.').length===1?1:Math.min(3,m[2].split('.').length));
+  return {level,roman:!!m[1]};
+}
 function headingEntries(doc){
- const body=by(doc,'body')[0];const entries=[];
+ const body=by(doc,'body')[0],entries=[];
  const pars=childrenNS(body,'p');let id=45000;
- const hasNumbered=pars.some(q=>/^\d+(?:\.\d+){0,3}\.?\s+[A-Za-zÁÉÍÓÚÜÑ]/.test(paragraphText(q).trim()));
  for(const par of pars){
-   const text=paragraphText(par).trim(); if(!text||text.length>126)continue;
-   const style=detectHeading(par);if(style==='TSFBody')continue;
-   if(hasNumbered && !/^\d+(?:\.\d+){0,3}\.?\s+[A-Za-zÁÉÍÓÚÜÑ]/.test(text))continue;
-   if(/^(ÍNDICE|INFORMACI[ÓO]N DEL DOCUMENTO|NIVELES DE APROBACI[ÓO]N|HISTORIAL DE CAMBIOS)$/i.test(text))continue;
-   let level=style==='TSFH1'?1:style==='TSFH2'?2:3;
-   const num=text.match(/^(\d+(?:\.\d+){0,3})\.?\s/);
-   if(num)level=Math.min(3,(num[1].match(/\./g)||[]).length+1);
+   const text=paragraphText(par).replace(/\s+/g,' ').trim();
+   if(!text||text.length>135)continue;
+   const outline=tsfOutlineNumber(text);
+   if(!outline)continue;
+   const currentStyle=detectHeading(par);
+   const explicit=tsfOutlineNumber(text)?.roman || currentStyle!=='TSFBody';
+   if(!explicit)continue;
+   const level=outline.level;
    const mark='_TSF_heading_'+String(entries.length+1);
    const start=node(doc,'bookmarkStart',{id:id,name:mark});
    const end=node(doc,'bookmarkEnd',{id:id});id++;
    par.insertBefore(start,par.firstChild);par.appendChild(end);
    setPstyle(doc,par,level===1?'TSFH1':level===2?'TSFH2':'TSFH3');
    entries.push({mark,text,level});
-   if(entries.length>=110)break; // índice razonable con archivos muy extensos
+   if(entries.length>=110)break;
  }
  return entries;
 }
@@ -688,7 +709,7 @@ async function docxToDocx(buffer,meta){
   const documentXml=await (zip.file('word/document.xml')?.async('string'));
   if(!documentXml)throw Error('El archivo seleccionado no es un Word DOCX válido.');
   if(/w:altChunk|w:object|w:txbxContent|w:sdt/.test(documentXml))warnings.push('El documento contiene objetos o bloques especiales: revisar su presentación en Word.');
-  if(/w:ins|w:del/.test(documentXml))warnings.push('Se han conservado las marcas de control de cambios para no modificar el contenido; revísalas en Word.');
+  if(/<w:(?:ins|del)(?:\s|>)/.test(documentXml))warnings.push('Se han conservado las marcas de control de cambios para no modificar el contenido; revísalas en Word.');
   const {legacyFrontMatter}=await patchPackage(zip,meta);
   if(legacyFrontMatter==='preservado')warnings.push('La portada o índice originales contienen revisiones/comentarios; se preservaron sin reemplazarlos ni duplicarlos. El nuevo encabezado y pie TSF sí se aplicaron.');
   const out=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:5},mimeType:DOCX_MIME});
@@ -727,11 +748,18 @@ function pdfLines(items){
   }).filter(r=>r.text.trim());
 }
 function headingFromPdf(line,base){
-  const t=line.text.trim();if(!t||t.length>145)return 'TSFBody';
-  if(line.size>base*1.35 && t.length<115)return 'TSFH1';
-  if(line.size>base*1.17 && t.length<110)return 'TSFH2';
-  if(/^\d+(?:\.\d+){0,3}\.?\s+[A-ZÁÉÍÓÚÑ]/.test(t)&&t.length<110 && (line.size>base*1.12 || (line.items||[]).some(x=>/bold|semi.?bold/i.test(x.fontName||'') && /[A-Za-zÁÉÍÓÚÑÜ]{4,}/.test(x.str||''))))return 'TSFH2';
-  if(t.length<80 && /^[A-ZÁÉÍÓÚÑ0-9\s,()/–-]{5,80}$/.test(t)&&t.split(/\s+/).length<=9)return 'TSFH2';
+  const t=line.text.replace(/\s+/g,' ').trim();if(!t||t.length>145)return 'TSFBody';
+  const bold=(line.items||[]).some(x=>/bold|semi.?bold/i.test(x.fontName||''));
+  // Roman chapters are used by TSF manuals; accounting numbers are NOT chapters.
+  const numbered=tsfOutlineNumber(t);
+  if(numbered && numbered.roman && t.length<=118)return 'TSFH1';
+  if(numbered && (bold || line.size>base*1.13) && t.length<119){
+    return numbered.level===1?'TSFH1':numbered.level===2?'TSFH2':'TSFH3';
+  }
+  // No numerical-title classification from font size alone (accounts often use bold).
+  if(!/^\d{3,}/.test(t) && line.size>base*1.35 && t.length<115)return 'TSFH1';
+  if(!/^\d{3,}/.test(t) && line.size>base*1.17 && t.length<110)return 'TSFH2';
+  if(!/^\d{3,}/.test(t) && t.length<80 && /^[A-ZÁÉÍÓÚÑ0-9\s,()/–-]{5,80}$/.test(t)&&t.split(/\s+/).length<=9)return 'TSFH2';
   return 'TSFBody';
 }
 function inspectPdfStructure(page,items,operatorList){
@@ -984,7 +1012,7 @@ function tsfSplitTableRegion(region,items,v){
    const empty=!rowItems.length;
    // Un título independiente ocupa casi toda la fila y comienza cerca del borde;
    // las etapas '1. Detección' sí tienen otras celdas y no deben dividir la tabla.
-   const numbered=/^\d{1,2}\.\s+[A-Za-zÁÉÍÓÚÑÜ]/.test(rowText.trim());
+   const numbered=!!tsfOutlineNumber(rowText.trim());
    const title = numbered && rowItems.length<=3 && rowText.trim().length<=150 &&
      Math.min(...rowItems.map(a=>a.x))<=region.left+12 &&
      rowItems.every(a=>a.x<region.left+(region.right-region.left)*.70);
@@ -1044,7 +1072,7 @@ function tsfTableXml(region,data,landscape=false){
  widths[widths.length-1]+=tot-widths.reduce((a,b)=>a+b,0);
  const grid=widths.map(w=>`<w:gridCol w:w="${w}"/>`).join('');
  const rows=data.allRows.map((cells,i)=>{
-   const header=i===0&&cells.filter(c=>c.text).length>=2;
+   const header=region.hasHeader!==false && i===0&&cells.filter(c=>c.text).length>=2;
    return `<w:tr><w:trPr><w:cantSplit/>${header?'<w:tblHeader/>':''}</w:trPr>${cells.map(c=>{
      const shade=header?'F5BD00':i%2?'FFFFFF':'F8F9FB';
      let xml=`<w:tc><w:tcPr><w:tcW w:w="${widths.slice(cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0),cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0)+c.span).reduce((a,b)=>a+b,0)}" w:type="dxa"/>`;
@@ -1112,6 +1140,67 @@ function tsfBlockHtmlXml(pBlock){
  if(pBlock.style==='TSFSource')return p(pBlock.text,'TSFSource');
  return pBlock.style==='TSFBody'?p(pBlock.text,'TSFBody',pBlock.indent?'<w:ind w:left="260" w:hanging="160"/>':'') : p(pBlock.text,pBlock.style);
 }
+// Remove source footer/header furniture only in the repeated, geometrically validated zone.
+// This prevents 20 occurrences of "Versión / Manual Específico / Diciembre" from
+// interrupting the text and contaminating the Word index. Never remove body text
+// merely because it happens to contain those same words.
+function tsfRemoveSourceFurniture(plan){
+ const h=plan.height;
+ const bottom=plan.items.filter(a=>a.y<h*.114);
+ const snippet=bottom.map(x=>x.str).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const confirmed=snippet.includes('manual especifico') ||
+   (snippet.includes('reglamentos')&&snippet.includes('diciembre')) ||
+   (snippet.includes('documento reservado')&&snippet.includes('version'));
+ if(!confirmed)return {...plan,footerRemoved:0};
+ const kept=plan.items.filter(a=>a.y>=h*.112);
+ return {...plan,items:kept,footerRemoved:plan.items.length-kept.length};
+}
+function tsfOriginalCover(plan,pageNumber){
+ if(pageNumber!==1)return false;
+ const text=plan.items.map(a=>a.str).join(' ').replace(/\s+/g,' ').trim();
+ const count=(text.match(/\S+/g)||[]).length;
+ return count>0&&count<=35&&/^(?:(?:manual|procedimiento|pol[ií]tica|reglamento)|(?:TOTAL\s+SERVICIOS))/i.test(text)
+      &&!(/^(?:I|II|III|IV)\.\s/i.test(text))&&plan.regions.length===0;
+}
+// Aligned, borderless accounting grids: codes are isolated as 4-6 digit tokens
+// and descriptions begin consistently on a second x-axis. Only reconstruct
+// verified runs of >=2 rows; never invent blank cells or account numbers.
+function tsfBorderlessAccountTables(items,landscape){
+ // Recognise label/value tables without ruled borders using stable X positions.
+ // One code can be vertically offset from a wrapped description by 6-9 pt.
+ const codeItems=items.filter(a=>/^\d{4,6}$/.test(a.str.trim())&&a.x>45&&a.x<390).sort((a,b)=>b.y-a.y);
+ const entries=[];
+ for(const code of codeItems){
+   const descCandidates=items.filter(a=>a.index!==code.index && a.x>code.x+35 && a.x<code.x+390 &&
+      Math.abs(a.y-code.y)<12 && /[A-Za-zÁÉÍÓÚÑÜáéíóúüñ]/.test(a.str));
+   if(!descCandidates.length)continue;
+   const anchor=descCandidates.sort((a,b)=>Math.abs(a.y-code.y)-Math.abs(b.y-code.y))[0];
+   // Use the same horizontal band as the nearest label, including split lines.
+   const desc=items.filter(a=>a.x>=anchor.x-3 && a.x<code.x+390 &&
+     Math.abs(a.y-code.y)<12 && Math.abs(a.y-anchor.y)<14 && a.index!==code.index)
+     .sort((a,b)=>b.y-a.y||a.x-b.x);
+   if(!desc.length)continue;
+   entries.push({code:code.str.trim(),left:code.x,descX:anchor.x,y:code.y,
+     label:tsfCellText(desc),ids:[code.index,...desc.map(a=>a.index)]});
+ }
+ const groups=[];
+ for(const c of entries){
+   const prev=groups[groups.length-1];
+   if(prev && Math.abs(prev.left-c.left)<14&&Math.abs(prev.descX-c.descX)<24&&prev.list.at(-1).y-c.y<70){prev.list.push(c);}
+   else groups.push({left:c.left,descX:c.descX,list:[c]});
+ }
+ const tables=[],consumed=new Set();
+ for(const g of groups){
+   if(g.list.length<2)continue;
+   const data=[];
+   for(const c of g.list){
+     data.push([{text:c.code,span:1},{text:c.label,span:1}]);
+     for(const id of c.ids)consumed.add(id);
+   }
+   tables.push({kind:'table',y:g.list[0].y+9,region:{cols:[g.left-6,g.descX-7,Math.max(480,g.descX+240)],hasHeader:false},data:{allRows:data}});
+ }
+ return {tables,consumed};
+}
 function tsfPdfPlan(page,allItems,operatorList){
  const height=page.view?.[3]||page.height||page.getViewport({scale:1}).height;
  const width=page.view?.[2]||page.width||page.getViewport({scale:1}).width;
@@ -1138,10 +1227,13 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  }
  const excluded=new Set();
  const tableBlocks=[];
+ const inferred=tsfBorderlessAccountTables(items,plan.landscape);
+ for(const b of inferred.tables)tableBlocks.push(b);
+ for(const n of inferred.consumed)excluded.add(n);
  for(const initialRegion of plan.regions){
    if(ignoreCover||ignoreIndex)break;
    for(const region of tsfSplitTableRegion(initialRegion,items,plan.graphics.v)){
-   const t=tsfTableData(region,items,plan.graphics.v);
+   const t=tsfTableData(region,items.filter(a=>!excluded.has(a.index)),plan.graphics.v);
    if(t.consumed.size<2)continue;
    const hasContent=t.allRows.some(row=>row.filter(c=>c.text).length>=2);
    if(!hasContent)continue;
@@ -1224,6 +1316,16 @@ async function tsfRenderFigure(page,plan,box,n){
  const id='rIdTSFFigure'+n;
  return {data,id,name:'tsf_diagrama_'+n+'.jpg',xml:`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="95" w:after="95"/></w:pPr>${imageMarkup(id,{cx,cy,id:4300+n})}</w:p>`};
 }
+function tsfUneditableImageEvidence(plan){
+ const suspects=[];
+ for(const b of plan.graphics.images){
+   const w=Math.abs(b.right-b.left),h=Math.abs(b.top-b.bottom);
+   const area=w*h/(plan.width*plan.height);
+   const inside=plan.items.filter(a=>a.x>=b.left-2&&a.x<=b.right+2&&a.y>=b.bottom-2&&a.y<=b.top+2).length;
+   if(inside<=3 && ((area>.17 && w>plan.width*.48) || (area>.018 && w>plan.width*.52 && h>25)))suspects.push({area,width:w,height:h});
+ }
+ return suspects;
+}
 async function pdfToDocx(buffer,meta,onProgress){
  await ensurePdfEngine();pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER;
  const task=pdfjsLib.getDocument({data:new Uint8Array(buffer)});
@@ -1233,17 +1335,28 @@ async function pdfToDocx(buffer,meta,onProgress){
  const body=[],figures=[],warnings=[],errors=[];
  let tables=0,paragraphs=0,totalItems=0,matchedItems=0,landscapeCount=0;
  let previousLandscape=false, sourceCover=false;
+ let lastEmitted=null;
  try{
    for(let i=1;i<=pdf.numPages;i++){
      onProgress('Analizando PDF '+i+'/'+pdf.numPages+': celdas, texto, páginas y figuras…');
      const page=await pdf.getPage(i);
      const txt=await page.getTextContent();
      const operatorList=await page.getOperatorList();
-     const plan=tsfPdfPlan(page,txt.items,operatorList);
+     let plan=tsfPdfPlan(page,txt.items,operatorList);
+     const originalContent=plan.items.length;
+     const uneditable=tsfUneditableImageEvidence(plan);
+     // A source-PDF bitmap containing a table cannot become native Word cells
+     // without OCR + cell recognition. Block instead of silently pasting it.
+     if(uneditable.length){
+       errors.push('Página '+i+': '+uneditable.length+' imagen(es) con posible tabla/formulario sin texto editable. Requieren OCR y reconstrucción de celdas; no se sustituyen por fotografías de páginas.');
+     }
+     plan=tsfRemoveSourceFurniture(plan);
+     if(plan.footerRemoved && i===2)warnings.push('Se detectaron y excluyeron pies de página antiguos repetidos; se usa únicamente el pie TSF.');
+     const bareCover=tsfOriginalCover(plan,i);
      if(i===1){
        tsfPdfMeta(plan,meta);
        const firstPageText=plan.items.map(a=>a.str).join(' ').toUpperCase();
-       sourceCover=/INFORMACI[ÓO]N DEL DOCUMENTO/i.test(firstPageText)&&/HISTORIAL DE CAMBIOS/i.test(firstPageText);
+       sourceCover=bareCover||(/INFORMACI[ÓO]N DEL DOCUMENTO/i.test(firstPageText)&&/HISTORIAL DE CAMBIOS/i.test(firstPageText));
      }
      const pageText=plan.items.map(a=>a.str).join(' ');
      const ignoreCover=i===1&&sourceCover;
@@ -1258,7 +1371,7 @@ async function pdfToDocx(buffer,meta,onProgress){
        warnings.push('Página '+i+': '+(extracted.regions-extracted.tableCount)+' zona(s) con estructura de tabla pendientes de revisión.');
      }
      if(plan.landscape)landscapeCount++;
-     if(plan.landscape!==previousLandscape && i>1){body.push(tsfSection(previousLandscape));}
+     if(plan.landscape!==previousLandscape && i>1){body.push(tsfSection(previousLandscape));lastEmitted=null;}
      previousLandscape=plan.landscape;
      if(ignoreIndex || (ignoreCover&&!extracted.blocks.length)){
        page.cleanup();continue;
@@ -1267,11 +1380,42 @@ async function pdfToDocx(buffer,meta,onProgress){
        warnings.push('Página 1: portada reemplazada; se conservó el contenido operativo que aparecía después de la carátula.');
      }
      for(const b of extracted.blocks){
-       if(b.kind==='table'){body.push(tsfTableXml(b.region,b.data,plan.landscape));tables++;}
-       else if(b.kind==='paragraph'){body.push(tsfBlockHtmlXml(b));paragraphs++;}
+       if(b.kind==='table'){
+         // A borderless accounting table may continue on the following PDF page.
+         // Combine only consecutive tables with the same inferred columns.
+         const sameTable=lastEmitted && lastEmitted.kind==='table' && lastEmitted.page===i-1 &&
+           lastEmitted.region.hasHeader===false && b.region.hasHeader===false &&
+           lastEmitted.data.allRows[0]?.length===b.data.allRows[0]?.length &&
+           lastEmitted.landscape===plan.landscape;
+         if(sameTable){
+           lastEmitted.data.allRows.push(...b.data.allRows);
+           body[body.length-1]=tsfTableXml(lastEmitted.region,lastEmitted.data,plan.landscape);
+           lastEmitted.page=i;
+         }else{
+           body.push(tsfTableXml(b.region,b.data,plan.landscape));tables++;
+           lastEmitted={kind:'table',region:b.region,data:b.data,page:i,landscape:plan.landscape};
+         }
+       }
+       else if(b.kind==='paragraph'){
+         // PDF pagination is not a paragraph boundary. Join a trailing sentence
+         // with a lowercase continuation from the very next page.
+         const continuation=lastEmitted && lastEmitted.kind==='paragraph' && lastEmitted.page===i-1 &&
+           lastEmitted.style==='TSFBody' && b.style==='TSFBody' &&
+           !/[.!?:;]\s*$/.test(lastEmitted.text) &&
+           /^[a-záéíóúñ]/.test(b.text) && !/^[a-z]\.\s/.test(b.text) &&
+           lastEmitted.landscape===plan.landscape;
+         if(continuation){
+           lastEmitted.text+=(/-\s*$/.test(lastEmitted.text)?'':' ')+b.text;
+           lastEmitted.page=i;
+           body[body.length-1]=tsfBlockHtmlXml(lastEmitted);
+         }else{
+           body.push(tsfBlockHtmlXml(b));paragraphs++;
+           lastEmitted={...b,page:i,landscape:plan.landscape};
+         }
+       }
        else if(b.kind==='figure'){
          const item=await tsfRenderFigure(page,plan,b.box,figures.length+1);
-         figures.push(item);body.push(item.xml);
+         figures.push(item);body.push(item.xml);lastEmitted={kind:'figure',page:i};
        }
      }
      totalItems+=extracted.items.length;matchedItems+=extracted.items.length-extracted.missing.length;
