@@ -198,7 +198,8 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.19 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.21 · GitHub Pages</footer>
+<!-- TSF v1.21: sangrías jerárquicas 0/220/440 twips y Arial uniforme en DOCX. -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -431,25 +432,24 @@ function insertBeforeBody(doc,markup){const body=by(doc,'body')[0];if(!body)thro
 function setPstyle(doc,paragraph,styleId){const pp=requireChild(doc,paragraph,'pPr');let s=firstNS(pp,'pStyle');if(!s){s=node(doc,'pStyle');pp.insertBefore(s,pp.firstChild);}s.setAttributeNS(NS.w,'w:val',styleId);
   for(const old of Array.from(pp.children))if(['shd','pBdr'].includes(old.localName))pp.removeChild(old);
 }
-// TSF v1.20: jerarquía independiente del espaciado. Los títulos no se separan
+// TSF v1.21: jerarquía independiente del espaciado. Los títulos no se separan
 // de su primer párrafo; jamás se insertan filas o líneas vacías para crear separación.
 // Nivel 2 (5.4): sangría 0.39 cm. Nivel 3 (5.4.1): margen izquierdo.
+// TSF v1.21: jerarquía visual, sin cambiar el orden ni la numeración original.
 function tsfSetHeadingGeometry(doc,par){
   const ppr=requireChild(doc,par,'pPr');
   const outline=tsfOutlineNumber(paragraphText(par));
-  const isTwoLevel=!!outline && !outline.roman && outline.level===2;
-  const isRoman=!!outline?.roman;
+  const level=outline?.roman?1:(outline?.level||1);
+  const left=level>=3?440:level===2?220:0;
   let ind=firstNS(ppr,'ind');
   if(!ind){ind=node(doc,'ind');ppr.appendChild(ind);}
-  ind.setAttributeNS(NS.w,'w:left',isTwoLevel?'220':'0');
+  ind.setAttributeNS(NS.w,'w:left',String(left));
   ind.setAttributeNS(NS.w,'w:firstLine','0');
   ind.removeAttributeNS(NS.w,'hanging');
   let spacing=firstNS(ppr,'spacing');
   if(!spacing){spacing=node(doc,'spacing');ppr.appendChild(spacing);}
-  // El margen está medido en twips, 20 twips = 1 punto.
-  spacing.setAttributeNS(NS.w,'w:before',String(isRoman?160:isTwoLevel?120:80));
-  spacing.setAttributeNS(NS.w,'w:after',String(isRoman?64:isTwoLevel?48:36));
-  // Word mantiene los encabezados unidos al párrafo siguiente y no los deja huérfanos.
+  spacing.setAttributeNS(NS.w,'w:before',String(outline?.roman?160:level===2?120:80));
+  spacing.setAttributeNS(NS.w,'w:after',String(outline?.roman?64:level===2?48:36));
   for(const property of ['keepNext','keepLines','widowControl']){
     if(!firstNS(ppr,property))ppr.appendChild(node(doc,property));
   }
@@ -457,6 +457,7 @@ function tsfSetHeadingGeometry(doc,par){
   if(!jc){jc=node(doc,'jc');ppr.appendChild(jc);}
   jc.setAttributeNS(NS.w,'w:val','left');
 }
+
 function cleanDirectRunStyle(doc){
   // Solo normalizar el color de los textos generales.
   // Referencias bibliográficas, fuentes y sus cursivas/colores se conservan.
@@ -471,6 +472,19 @@ function cleanDirectRunStyle(doc){
     if(paragraph && tsfIsNoteParagraph(paragraph))continue;
     for(const c of Array.from(rp.children))if(c.localName==='color')rp.removeChild(c);
     rp.appendChild(node(doc,'color',{val:'242424'}));
+  }
+}
+
+// TSF v1.21: toda la salida DOCX (títulos, párrafos, numeración y tablas) en Arial.
+// No altera el texto, su orden, las negritas, las cursivas o el tamaño.
+function tsfForceArialAllRuns(doc){
+  const body=by(doc,'body')[0];if(!body)return;
+  for(const r of by(body,'r')){
+    if(isInsideRevision(r))continue;
+    const rpr=requireChild(doc,r,'rPr');
+    let fonts=firstNS(rpr,'rFonts');
+    if(!fonts){fonts=node(doc,'rFonts');rpr.insertBefore(fonts,rpr.firstChild);}
+    for(const k of ['ascii','hAnsi','cs','eastAsia'])fonts.setAttributeNS(NS.w,'w:'+k,'Arial');
   }
 }
 
@@ -898,6 +912,7 @@ function normalizeBodyContent(doc){
   tsfBreathingForGeneratedText(doc);
   improveTables(doc);
   tsfAlignExistingObjects(doc);
+  tsfForceArialAllRuns(doc);
   return frontMatter;
 }
 async function loadAsset(){
@@ -1268,7 +1283,7 @@ function tsfSourceFont(item){
 function tsfRichFragment(text,item,{forceBold=false,overrideColor='242424',note=false,forceSizePt=null}={}){
  const f=tsfSourceFont(item||{}), bold=forceBold||f.bold, italic=f.italic;
  const size=forceSizePt===null?f.sz:Math.round(Number(forceSizePt)*2);
- const fName=esc(f.family);
+ const fName='Arial';
  return `<w:r><w:rPr><w:rFonts w:ascii="${fName}" w:hAnsi="${fName}" w:cs="${fName}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/><w:color w:val="${hex(overrideColor)}"/><w:b w:val="${bold?'1':'0'}"/><w:i w:val="${italic?'1':'0'}"/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
 }
 function tsfRichTokens(items){
@@ -1655,7 +1670,7 @@ function tsfPdfParagraphAlign(block){
 function tsfBlockHtmlXml(pBlock){
  if(pBlock.style==='TSFSource')return `<w:p><w:pPr><w:pStyle w:val="TSFSource"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{note:true,forceSizePt:8})}</w:p>`;
  const outline=tsfOutlineNumber(pBlock.text||'');
- const numberedLabel=!!outline && (outline.roman || outline.level<=2);
+ const numberedLabel=!!outline && (outline.roman || outline.level<=3);
  const heading=/^TSFH[123]$/.test(pBlock.style||'') || numberedLabel;
  const sz=heading?11:9;
  const indent=Number(pBlock.indent)||0;
@@ -1664,7 +1679,7 @@ function tsfBlockHtmlXml(pBlock){
   const isList=pBlock.listKind==='alphabetic'||pBlock.listKind==='bullet';
   // 23 pt desde el margen para el texto; símbolo a 11 pt, tabulador exacto a 23 pt.
   const indentation=isList?'<w:ind w:left="460" w:hanging="240"/><w:tabs><w:tab w:val="left" w:pos="460"/></w:tabs>'
-    : (outline && !outline.roman && outline.level>=3) ? '<w:ind w:left="0" w:firstLine="0"/>'
+    : (outline && !outline.roman && outline.level>=3) ? '<w:ind w:left="440" w:firstLine="0"/>'
     : heading ? (outline && !outline.roman && outline.level===2 ? '<w:ind w:left="220" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
     : indent>0 ? `<w:ind w:left="${Math.round(Math.min(indent,65)*20)}"/>` : '';
   const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
