@@ -75,6 +75,37 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
 .pdf-draft-opt small{display:block;font-size:11px;line-height:1.55;color:#705a1a;margin-top:3px}
 
 /* Las imágenes PDF se conservan en Word sin OCR ni revisión de celdas. */
+
+/* Revisión asistida por fragmentos: no se acepta un borrador global. */
+.pdf-review-info{display:flex;align-items:flex-start;gap:13px;margin-top:12px;border:1px solid #d7dce4;border-radius:10px;padding:14px 16px;background:#fafbfc}
+.pdf-review-info strong{display:block;font-size:12px;color:#222}
+.pdf-review-info small{display:block;font-size:11px;color:#59636f;line-height:1.6;margin-top:3px}
+.pdf-review-glyph{font-size:23px;font-weight:800;color:#a88300;line-height:1}
+.tsf-review-overlay{position:fixed;inset:0;background:rgba(12,17,24,.78);display:flex;justify-content:center;align-items:center;z-index:6000;padding:16px}
+.tsf-review-overlay[hidden]{display:none}
+.tsf-review-dialog{width:min(1100px,100%);max-height:94vh;display:flex;flex-direction:column;background:#fff;border-radius:17px;box-shadow:0 18px 90px #1118;overflow:hidden;color:#18202a}
+.tsf-review-head{padding:18px 22px 14px;border-bottom:1px solid #e4e7ec}
+.tsf-review-head h2{font-size:18px;margin:0 0 6px;font-weight:800}
+.tsf-review-head p{font-size:12px;margin:0;color:#65707e;line-height:1.6}
+.tsf-review-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px 22px;overflow:auto;min-height:0}
+.tsf-review-original,.tsf-review-converted{min-width:0;border:1px solid #e1e5ea;background:#fafbfc;border-radius:12px;padding:12px}
+.tsf-review-original h3,.tsf-review-converted h3{font-size:12px;font-weight:800;margin:0 0 12px}
+.tsf-review-original img{width:100%;max-height:43vh;object-fit:contain;background:white;border:1px solid #e5e7eb}
+.tsf-review-tip{font-size:11px;color:#5b6775;margin:-5px 0 10px;line-height:1.45}
+.tsf-review-preview [contenteditable="true"]:focus{outline:2px solid #dfa700;outline-offset:-2px;background:#fffdf3}
+.tsf-review-converted .tsf-review-preview{overflow:auto;max-height:43vh;background:#fff;padding:8px;border:1px solid #e5e7eb;font:12px Arial,sans-serif;white-space:pre-wrap}
+.tsf-review-preview table{border-collapse:collapse;width:100%;font:11px Arial,sans-serif}
+.tsf-review-preview th,.tsf-review-preview td{border:1px solid #d1d5db;padding:5px;vertical-align:top;white-space:pre-wrap;min-width:38px}
+.tsf-review-preview tr:first-child{background:#ffe5a1}
+.tsf-review-footer{border-top:1px solid #e4e7ec;padding:16px 22px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;background:#fff}
+.tsf-review-choice{display:flex;gap:8px;flex-wrap:wrap}
+.tsf-review-footer button{padding:10px 14px;border:1px solid #cdd3de;border-radius:9px;cursor:pointer;background:#fff;color:#242a31;font-weight:700}
+.tsf-review-footer button.tsf-choice-editable{background:#f5bd00;border-color:#e0af00;color:#141414}
+.tsf-review-footer button.tsf-choice-original{background:#272b30;color:#fff;border-color:#272b30}
+.tsf-review-footer button:focus-visible{outline:3px solid #6aa7ff;outline-offset:2px}
+.tsf-review-footer button:disabled{opacity:.35;cursor:not-allowed}.tsf-review-footer .tsf-review-cancel{color:#9b1c1c}
+.tsf-review-pill{font-size:11px;padding:4px 8px;border-radius:10px;background:#fff2c4;color:#765900}
+@media(max-width:700px){.tsf-review-columns{grid-template-columns:1fr}.tsf-review-original img,.tsf-review-converted .tsf-review-preview{max-height:25vh}}
 </style>
 
 </head>
@@ -117,11 +148,11 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
         <div class="panel-title"><span class="step">PDF</span><div><h2 id="pdf-mode-title">PDF a Word: texto editable e imágenes conservadas</h2><p>Detección de tablas, conservación de imágenes y control de fidelidad.</p></div></div>
         <div class="pdf-hint" role="note"><strong>Salida Word (.docx):</strong> el motor conserva tamaños y énfasis del texto recuperable, reconstruye tablas con texto digital y mantiene las imágenes originales como figuras individuales. No aplica OCR ni transforma imágenes en tablas. No convierte páginas de texto completo en fotografías.</div>
         <div id="pdf-check" class="pdf-hint" style="margin-top:8px;display:none" aria-live="polite"></div>
-        <label class="pdf-draft-opt" for="pdf-draft">
-          <input type="checkbox" id="pdf-draft">
-          <span><strong>Permitir borrador si falta texto o alguna tabla digital</strong>
-          <small>Solo para revisión cuando haya errores de extracción de texto o tablas digitales. Las imágenes del PDF se conservan tal como se ven, como objetos gráficos independientes, sin intentar convertirlas en texto. No se agregan observaciones al Word.</small></span>
-        </label>
+        <div class="pdf-review-info">
+          <span class="pdf-review-glyph">⇄</span>
+          <div><strong>Decide solo cuando un fragmento sea difícil de reconstruir</strong>
+          <small>Verás el fragmento del PDF frente a su reconstrucción y podrás elegir <b>conservar original</b> (imagen individual fiel, no editable por dentro) o <b>usar reconstrucción editable</b> (texto y celdas editables, a revisar). No se alterará el resto del contenido. No agregaremos observaciones al Word.</small></div>
+        </div>
       </section>
       <section class="panel" aria-labelledby="s2">
         <div class="panel-title"><span class="step">02</span><div><h2 id="s2">Información del documento</h2><p>Completa únicamente los datos que aparecerán en la portada.</p></div></div>
@@ -147,9 +178,27 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </section>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     </form>
-    <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>El contenido de los documentos se procesa en tu navegador; las bibliotecas y modelos OCR se descargan desde sus proveedores, sin enviar el documento a un servicio de conversión. Las imágenes se conservan visualmente como elementos gráficos separados, sin OCR. El texto digital y las tablas recuperables siguen siendo editables. Si el PDF presenta componentes que el motor no puede recuperar con seguridad, se muestra el problema y se solicita revisión.</span></div>
+    <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>El contenido de los documentos se procesa en tu navegador; el lector de PDF puede descargarse desde su proveedor, sin enviar el documento a un servicio de conversión. Las imágenes se conservan visualmente como elementos gráficos separados, sin OCR. El texto digital y las tablas recuperables siguen siendo editables. Si el PDF presenta componentes que el motor no puede recuperar con seguridad, se muestra el problema y se solicita revisión.</span></div>
   </main>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.12 · GitHub Pages</footer>
+
+  <div class="tsf-review-overlay" id="tsf-review-overlay" hidden>
+    <section class="tsf-review-dialog" role="dialog" aria-modal="true" aria-labelledby="tsf-review-title">
+      <header class="tsf-review-head"><h2 id="tsf-review-title">Revisar fragmento del PDF</h2>
+        <p id="tsf-review-description">Elige cuál de las dos versiones usar en el Word. No se modificarán los demás fragmentos.</p></header>
+      <div class="tsf-review-columns">
+        <div class="tsf-review-original"><h3>Original — presentación fiel</h3><img id="tsf-review-image" alt="Fragmento original del PDF"></div>
+        <div class="tsf-review-converted"><h3>Reconstrucción — contenido editable</h3><p class="tsf-review-tip">Puedes corregir las celdas o el texto aquí antes de seleccionar «Usar editable».</p><div id="tsf-review-preview" class="tsf-review-preview"></div></div>
+      </div>
+      <footer class="tsf-review-footer"><span id="tsf-review-count" class="tsf-review-pill"></span>
+        <div class="tsf-review-choice">
+          <button type="button" class="tsf-review-cancel" id="tsf-review-cancel">Cancelar conversión</button>
+          <button type="button" class="tsf-choice-original" id="tsf-review-original">Conservar original</button>
+          <button type="button" class="tsf-choice-editable" id="tsf-review-editable">Usar editable</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.13 · GitHub Pages</footer>
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -250,7 +299,7 @@ function firstNS(parent,name) { return childrenNS(parent,name)[0] || null; }
 function requireChild(doc,parent,name) { let c=firstNS(parent,name);if(!c){c=node(doc,name);parent.insertBefore(c,parent.firstChild);}return c; }
 function hex(s){return String(s).replace(/[^A-Fa-f0-9]/g,'').slice(0,6).toUpperCase()||'000000';}
 
-// Las referencias bibliográficas se mantienen en su formato documental (8 pt, cursiva, gris).
+// El estilo TSFSource es un fallback; el formato real del PDF prevalece a nivel de cada fragmento.
 // Las indicaciones de uso y los diagnósticos no se escriben dentro del Word.
 const TSF_SOURCE_STYLE = `<w:style w:type="paragraph" w:styleId="TSFSource" w:customStyle="1"><w:name w:val="Fuente documental TSF"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="55" w:after="90" w:line="220" w:lineRule="auto"/><w:jc w:val="left"/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="16"/><w:color w:val="555555"/><w:i/></w:rPr></w:style>`;
 function tsfIsSourceNote(text){
@@ -946,18 +995,33 @@ function tsfPrimitives(ops,width,height){
 
 /* Motor 1.12: estilos por fragmento. Word mantiene su contenido editable. */
 function tsfSourceFont(item){
- const family=String(item.family||item.fontFamily||'Arial');
- const id=String(item.sourceFont||item.fontName||'');
- const desc=(family+' '+id).toLowerCase();
- const familySafe=/times|cambria|serif/.test(desc)?'Times New Roman':(/calibri/.test(desc)?'Calibri':'Arial');
- return {family:familySafe,bold:/bold|black|heavy|semibold|demi/.test(desc)||item.bold===true,
-   italic:/italic|oblique/.test(desc)||item.italic===true,
-   sz:Math.max(11,Math.min(48,Math.round((Number(item.size)||10)*2)))};
+ // No usar /serif/ sobre "sans-serif": eso convirtió PDF Arial en Times New Roman.
+ // Fuente PostScript del PDF tiene prioridad sobre el nombre genérico informado por PDF.js.
+ const names=[item.postscriptName,item.sourceFont,item.fontName,item.family,item.fontFamily]
+   .filter(Boolean).map(String);
+ const exact=names.find(x=>/TimesNewRoman|Times-Roman|NimbusRoman|LiberationSerif|Cambria|Georgia|Arial|Helvetica|LiberationSans|NimbusSans|Calibri|Aptos|Verdana|Tahoma|SegoeUI|CourierNew|Courier-Bold/i.test(x))||'';
+ let family='Arial';
+ if(/TimesNewRoman|Times-Roman|NimbusRoman|LiberationSerif/i.test(exact))family='Times New Roman';
+ else if(/Cambria/i.test(exact))family='Cambria';
+ else if(/Georgia/i.test(exact))family='Georgia';
+ else if(/Calibri/i.test(exact))family='Calibri';
+ else if(/Aptos/i.test(exact))family='Aptos';
+ else if(/Verdana/i.test(exact))family='Verdana';
+ else if(/Tahoma/i.test(exact))family='Tahoma';
+ else if(/SegoeUI/i.test(exact))family='Segoe UI';
+ else if(/Courier/i.test(exact))family='Courier New';
+ // ArialMT, Helvetica, LiberationSans y "sans-serif" corresponden a Arial.
+ const desc=names.join(' ').toLowerCase();
+ const isBold=/bold|black|heavy|semi.?bold|demi/i.test(desc)||item.bold===true;
+ const isItalic=/italic|oblique/i.test(desc)||item.italic===true;
+ const pdfSize=Number(item.size);
+ return {family,bold:isBold,italic:isItalic,
+   sz:Number.isFinite(pdfSize)&&pdfSize>0?Math.max(8,Math.min(144,Math.round(pdfSize*2))):20};
 }
 function tsfRichFragment(text,item,{forceBold=false,overrideColor='242424',note=false}={}){
  const f=tsfSourceFont(item||{}), bold=forceBold||f.bold, italic=note?f.italic:f.italic;
  const fName=esc(f.family);
- return `<w:r><w:rPr><w:rFonts w:ascii="${fName}" w:hAnsi="${fName}"/><w:sz w:val="${f.sz}"/><w:color w:val="${hex(overrideColor)}"/>${bold?'<w:b/>':''}${italic?'<w:i/>':''}</w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+ return `<w:r><w:rPr><w:rFonts w:ascii="${fName}" w:hAnsi="${fName}" w:cs="${fName}"/><w:sz w:val="${f.sz}"/><w:szCs w:val="${f.sz}"/><w:color w:val="${hex(overrideColor)}"/><w:b w:val="${bold?'1':'0'}"/><w:i w:val="${italic?'1':'0'}"/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
 }
 function tsfRichTokens(items){
  if(!items||!items.length)return [];
@@ -989,16 +1053,30 @@ function tsfRichTextXml(text,items,{forceBold=false,note=false}={}){
  if(found!==wanted){
    const ordered=(items||[]).slice().sort((a,b)=>b.y-a.y||a.x-b.x);
    const sizes=ordered.map(a=>a.size).filter(Number.isFinite).sort((a,b)=>a-b);
-   const base={...(ordered[0]||{}),size:sizes[Math.floor(sizes.length/2)]||10};
+   const weight=new Map();
+   for(const it of ordered){const f=tsfSourceFont(it);const key=f.family+'|'+f.bold+'|'+f.italic;
+     const current=weight.get(key)||{item:it,n:0};current.n+=String(it.str||'').length;weight.set(key,current);}
+   const dominant=[...weight.values()].sort((a,b)=>b.n-a.n)[0]?.item || ordered[0] || {};
+   const base={...dominant,size:sizes[Math.floor(sizes.length/2)]||10};
    return tsfRichFragment(text,base,{forceBold});
  }
- return tokens.map(t=>tsfRichFragment(t.text,t.item,{forceBold})).join('');
+ // Suprimir espacios duplicados creados por la combinación de fragmentos PDF,
+ // sin reescribir palabras ni signos del contenido fuente.
+ let emitted='',xml='';
+ for(const t of tokens){
+   let text=String(t.text).replace(/\s+/g,' ');
+   if(emitted.endsWith(' '))text=text.replace(/^ +/,'');
+   if(!emitted)text=text.replace(/^ +/,'');
+   if(!text)continue;
+   xml+=tsfRichFragment(text,t.item,{forceBold});emitted+=text;
+ }
+ return xml;
 }
 
 function tsfPdfItems(items,width,height,styles={}){
  return items.filter(a=>typeof a.str==='string'&&a.str.trim()&&Array.isArray(a.transform)).map((a,index)=>{
    const x=a.transform[4]||0,y=a.transform[5]||0,w=Math.max(0,a.width||0);
-   return {index,str:safeSpaces(a.str),x,y,width:w,size:Math.abs(a.transform[3]||a.height||9),fontName:a.fontName||'',family:styles[a.fontName]?.fontFamily||a.fontName||'Arial',sourceFont:a.fontName||'',bold:/bold|heavy|black/i.test(a.fontName||'')};
+   return {index,str:safeSpaces(a.str),x,y,width:w,postscriptName:styles[a.fontName]?.postscriptName||'',size:Math.abs(a.transform[3]||a.height||9),fontName:a.fontName||'',family:styles[a.fontName]?.fontFamily||a.fontName||'Arial',sourceFont:a.fontName||'',bold:/bold|heavy|black/i.test((a.fontName||'')+' '+(styles[a.fontName]?.fontFamily||''))};
  }).filter(a=>a.y>TSF_PDF_FOOTER_PT && a.y<height-TSF_PDF_HEADER_PT && a.x>=0 && a.x<width+5);
 }
 function tsfRegions(h,v,width,height){
@@ -1217,9 +1295,17 @@ function tsfSection(landscape){
  const sz=landscape?'<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>':'<w:pgSz w:w="11906" w:h="16838"/>';
  return `<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/>${sz}<w:pgMar w:top="1350" w:bottom="1350" w:left="1100" w:right="1100" w:header="440" w:footer="350"/></w:sectPr></w:pPr></w:p>`;
 }
+function tsfPdfParagraphAlign(block){
+ if(!block.source?.length||!block.pageWidth)return '';
+ const arr=block.source, minX=Math.min(...arr.map(a=>a.x)),maxX=Math.max(...arr.map(a=>a.x+a.width));
+ const w=block.pageWidth, center=(minX+maxX)/2, span=maxX-minX;
+ if(span<w*.64 && minX>w*.19 && maxX<w*.81 && Math.abs(center-w/2)<w*.055)return 'center';
+ if(minX>w*.57&&span<w*.35)return 'right';
+ return '';
+}
 function tsfBlockHtmlXml(pBlock){
  if(pBlock.style==='TSFSource')return `<w:p><w:pPr><w:pStyle w:val="TSFSource"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{note:true})}</w:p>`;
- return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${pBlock.indent?'<w:ind w:left="260" w:hanging="160"/>':''}${pBlock.style==='TSFMath'?'<w:jc w:val="left"/>':''}</w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{forceBold:/^TSFH/.test(pBlock.style||'')})}</w:p>`;
+ return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${pBlock.indent?'<w:ind w:left="260" w:hanging="160"/>':''}${pBlock.style==='TSFMath'?'<w:jc w:val="left"/>':tsfPdfParagraphAlign(pBlock)?`<w:jc w:val="${tsfPdfParagraphAlign(pBlock)}"/>`:''}</w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source)}</w:p>`;
 }
 // Remove source footer/header furniture only in the repeated, geometrically validated zone.
 // This prevents 20 occurrences of "Versión / Manual Específico / Diciembre" from
@@ -1324,6 +1410,21 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
    t.consumed.forEach(x=>excluded.add(x));
    }
  }
+ // Conservar como fragmentos de decisión las cuadrículas que no se pudieron
+ // reconstruir. Nunca perderlas ni obligar a aceptar un borrador general.
+ if(!ignoreCover&&!ignoreIndex){
+   for(const region of plan.regions){
+     const already=tableBlocks.some(b=>b.region &&
+       Math.max(0,Math.min(b.region.top,region.top)-Math.max(b.region.bottom,region.bottom))>
+          Math.min(b.region.top-b.region.bottom,region.top-region.bottom)*.45);
+     if(already)continue;
+     const regionItems=items.filter(a=>a.y<=region.top+2&&a.y>=region.bottom-2&&a.x>=region.left-3&&a.x<=region.right+3);
+     const data=tsfTableData(region,regionItems,plan.graphics.v);
+     if(!regionItems.length && !data.allRows.length)continue;
+     regionItems.forEach(a=>excluded.add(a.index));
+     tableBlocks.push({kind:'ambiguousTable',y:region.top,region,data,source:regionItems});
+   }
+ }
  const imageBlocks=[];
  for(const box of figures){
    if(ignoreCover||ignoreIndex)break;
@@ -1333,7 +1434,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  }
  const remaining=items.filter(a=>!excluded.has(a.index));
  const paragraphs=tsfPdfParagraphs(remaining,Math.max(8,...remaining.map(x=>x.size).sort((a,b)=>a-b).slice(Math.floor(remaining.length/2),Math.floor(remaining.length/2)+1)));
- const blocks=[...tableBlocks,...imageBlocks,...paragraphs.map(b=>({...b,kind:'paragraph'}))].sort((a,b)=>b.y-a.y);
+ const blocks=[...tableBlocks,...imageBlocks,...paragraphs.map(b=>({...b,pageWidth:plan.width,kind:'paragraph'}))].sort((a,b)=>b.y-a.y);
  // Safety: a numbered section title must remain a Word paragraph, NEVER a table cell.
  const rows=tsfCoordGroups(items.map(a=>a.y),2.4);
  for(const group of rows){
@@ -1350,6 +1451,73 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  const covered=new Set([...excluded,...paragraphs.flatMap(b=>b.source.map(a=>a.index))]);
  const missing=items.filter(a=>!covered.has(a.index));
  return {blocks,items,missing,tableCount:tableBlocks.length,figureCount:imageBlocks.length,regions:plan.regions.length};
+}
+
+
+/* TSF v1.13 — Revisión por fragmento, no por archivo completo. */
+const tsfReviewOverlay=document.getElementById('tsf-review-overlay');
+function tsfReviewPreview(block){
+ const target=document.getElementById('tsf-review-preview');target.replaceChildren();
+ if(block.kind==='table'||block.kind==='ambiguousTable'){
+   const t=document.createElement('table');
+   for(const row of block.data.allRows){
+     const tr=document.createElement('tr');
+     for(const c of row){
+       const el=document.createElement('td');el.textContent=c.text||' ';el.contentEditable='true';el.spellcheck=false;
+       el.addEventListener('input',()=>{c.text=el.textContent.replace(/\s*\n\s*/g,' ').trim();});
+       if(c.span>1)el.colSpan=c.span;tr.appendChild(el);
+     }t.appendChild(tr);
+   }
+   target.appendChild(t);
+ }else{
+   const p=document.createElement('p');p.textContent=block.text||tsfCellText(block.source||[])||'[Texto no recuperado]';p.contentEditable='true';p.spellcheck=false;p.addEventListener('input',()=>{block.text=p.textContent.replace(/\s*\n\s*/g,' ').trim();block.source=[];});target.appendChild(p);
+ }
+}
+function tsfRiskyTable(block){
+ if(block.kind==='ambiguousTable')return true;
+ if(block.kind!=='table')return false;
+ const cells=block.data.allRows||[],columns=(block.region.cols||[]).length-1;
+ const merged=cells.some(row=>row.some(c=>c.span>1));
+ const veryLong=cells.length>12;
+ const veryWide=columns>=4;
+ const emptyHeavy=columns>2&&cells.length>3&&cells.filter(row=>row.filter(c=>c.text).length<=1).length>cells.length*.45;
+ return merged||veryWide||veryLong||emptyHeavy;
+}
+function tsfFragmentBox(block,plan){
+ if((block.kind==='table'||block.kind==='ambiguousTable')&&block.region){return {left:block.region.left,right:block.region.right,top:block.region.top,bottom:block.region.bottom};}
+ const src=block.source||[];if(!src.length)return null;
+ return {left:Math.max(0,Math.min(...src.map(a=>a.x))-6),right:Math.min(plan.width,Math.max(...src.map(a=>a.x+a.width))+6),
+   top:Math.min(plan.height,Math.max(...src.map(a=>a.y+a.size*1.1))+5),
+   bottom:Math.max(0,Math.min(...src.map(a=>a.y-a.size*.3))-5)};
+}
+async function tsfChooseBlock(page,plan,block,pageNumber,issueNumber,label){
+ const box=tsfFragmentBox(block,plan);
+ if(!box)throw Error('No se pudo localizar el fragmento original para compararlo.');
+ const preview=await tsfRenderFigure(page,plan,box,7000+issueNumber);
+ const objectUrl=URL.createObjectURL(new Blob([preview.data],{type:'image/png'}));
+ const title=document.getElementById('tsf-review-title'),description=document.getElementById('tsf-review-description');
+ title.textContent='Revisión de fragmento · página '+pageNumber;
+ description.textContent=label+' Puedes conservar este recorte exacto del PDF como imagen individual o elegir su reconstrucción editable. La decisión solo afecta este fragmento.';
+ document.getElementById('tsf-review-count').textContent='Fragmento '+issueNumber;
+ const picture=document.getElementById('tsf-review-image');picture.src=objectUrl;
+ tsfReviewPreview(block);
+ const hasEditable=block.kind!=='ambiguousTable'||block.data.allRows.some(row=>row.some(c=>c.text));
+ const btnEditable=document.getElementById('tsf-review-editable');
+ btnEditable.disabled=!hasEditable;
+ btnEditable.title=hasEditable?'Usar fragmento editable':'No se recuperó texto para una reconstrucción editable';
+ tsfReviewOverlay.hidden=false;
+ const buttonOriginal=document.getElementById('tsf-review-original'),buttonEditable=document.getElementById('tsf-review-editable'),buttonCancel=document.getElementById('tsf-review-cancel');
+ try{
+  return await new Promise((resolve,reject)=>{
+   const done=(value,err)=>{cleanup(); if(err)reject(Error('Conversión cancelada por el usuario.'));else resolve(value);};
+   function cleanup(){buttonOriginal.removeEventListener('click',onOriginal);buttonEditable.removeEventListener('click',onEditable);buttonCancel.removeEventListener('click',onCancel);document.removeEventListener('keydown',onEsc);}
+   function onOriginal(){done('original');}
+   function onEditable(){done('editable');}
+   function onCancel(){done('',true);}
+   function onEsc(e){if(e.key==='Escape')onCancel();}
+   buttonOriginal.addEventListener('click',onOriginal);buttonEditable.addEventListener('click',onEditable);buttonCancel.addEventListener('click',onCancel);document.addEventListener('keydown',onEsc);(hasEditable?buttonEditable:buttonOriginal).focus();
+  }).then(choice=>({choice,preview}));
+ }finally{tsfReviewOverlay.hidden=true;picture.removeAttribute('src');URL.revokeObjectURL(objectUrl);}
 }
 
 function bufferFromBlob(blob){return blob.arrayBuffer();}
@@ -1414,14 +1582,14 @@ function tsfUneditableImageEvidence(plan){
  return suspects;
 }
 async function pdfToDocx(buffer,meta,onProgress,options={}){
- const allowDraft=options.allowDraft===true;
+ // Se solicita revisión específica; no existe permiso global de borrador.
  await ensurePdfEngine();pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER;
  const task=pdfjsLib.getDocument({data:new Uint8Array(buffer)});
  let pdf;
  try{pdf=await task.promise;}catch(e){throw Error('No se pudo abrir el PDF: '+e.message);}
  if(pdf.numPages>TSF_PDF_LIMIT_PAGES){await pdf.destroy();throw Error('Este PDF tiene '+pdf.numPages+' páginas; el modo público admite hasta '+TSF_PDF_LIMIT_PAGES+'. Divide el documento y comprueba el resultado.');}
  const body=[],figures=[],warnings=[],errors=[],draftPages=new Set(),missingPages=new Set();
- let tables=0,paragraphs=0,totalItems=0,matchedItems=0,landscapeCount=0;
+ let tables=0,paragraphs=0,totalItems=0,matchedItems=0,landscapeCount=0,reviewNumber=0;
  let previousLandscape=false, sourceCover=false;
  let lastEmitted=null;
  try{
@@ -1430,7 +1598,19 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      const page=await pdf.getPage(i);
      const txt=await page.getTextContent();
      const operatorList=await page.getOperatorList();
-     let plan=tsfPdfPlan(page,txt.items,operatorList,txt.styles||{});
+     // PDF.js puede entregar "sans-serif" como familia genérica, aunque
+     // el nombre real de la fuente sea ArialMT o Arial-BoldMT.
+     // Recuperar el nombre PostScript, si el lector lo expone, antes de
+     // trasladar estilos y no confundir Arial con Times New Roman.
+     const fontStyles={...(txt.styles||{})};
+     for(const it of txt.items){
+       if(!it.fontName||fontStyles[it.fontName]?.postscriptName)continue;
+       try{
+         const f=page.commonObjs?.get(it.fontName);
+         if(f?.name){fontStyles[it.fontName]={...(fontStyles[it.fontName]||{}),postscriptName:String(f.name)};}
+       }catch(_){/* Si el lector no lo expone, mantener Arial como fallback sans-serif. */}
+     }
+     let plan=tsfPdfPlan(page,txt.items,operatorList,fontStyles);
      const originalContent=plan.items.length;
      const intactImages=tsfUneditableImageEvidence(plan);
      // Las imágenes (incluidas matrices rasterizadas) se conservan, no se interpretan.
@@ -1448,17 +1628,23 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      const ignoreCover=i===1&&sourceCover;
      const ignoreIndex=i<=3&&/ÍNDICE/i.test(pageText)&&(/OBJETIVO/.test(pageText.toUpperCase())&&/ALCANCE/.test(pageText.toUpperCase()))&&!ignoreCover;
      const extracted=tsfMakeBlocks(plan,ignoreCover,ignoreIndex);
-     if(extracted.missing.length){
-       const msg='Página '+i+': '+extracted.missing.length+' fragmentos de texto no asignados.';
-       if(allowDraft){warnings.push(msg+' Contenido incompleto.');draftPages.add(i);missingPages.add(i);}else errors.push(msg);
+     // Nada se omite por aceptar una casilla genérica. Un fragmento sin asignar
+     // se presenta como incidencia para elegir entre original y texto rescatado.
+     if(extracted.missing.length && !ignoreCover && !ignoreIndex){
+       warnings.push('Página '+i+': '+extracted.missing.length+' elementos con extracción incierta, sometidos a elección del usuario.');
+       const p=tsfPdfParagraphs(extracted.missing,10);
+       if(!p.length)errors.push('Página '+i+': contenido no recuperable.');
+       else for(const b of p){
+         extracted.blocks.push({...b,kind:'rescue',pageWidth:plan.width,y:b.y});
+       }
+       extracted.blocks.sort((a,b)=>b.y-a.y);
      }
      if(!ignoreCover&&!ignoreIndex&&plan.items.length<3&&extracted.figureCount===0){
-       const msg='Página '+i+': no se encontró texto seleccionable ni imagen preservable.';
-       if(allowDraft){warnings.push(msg+' Contenido no recuperado.');draftPages.add(i);missingPages.add(i);}else errors.push(msg);
+       errors.push('Página '+i+': no hay texto ni imagen recuperables.');
      }
-     if(!ignoreCover&&!ignoreIndex&&plan.regions.length>0&&extracted.tableCount===0&&extracted.figureCount===0){
-       const msg='Página '+i+': se detectó una cuadrícula de tabla, pero no fue posible reconstruir sus celdas con suficiente seguridad.';
-       if(allowDraft){warnings.push(msg+' Revisar contra el PDF.');draftPages.add(i);missingPages.add(i);}else errors.push(msg);
+     if(!ignoreCover&&!ignoreIndex&&plan.regions.length>0&&!extracted.blocks.some(b=>b.kind==='table'||b.kind==='ambiguousTable'||b.kind==='figure')){
+       // Evita pérdida silenciosa de cuadrículas sin texto: se requiere reconstrucción.
+       errors.push('Página '+i+': cuadrícula de tabla sin reconstrucción ni contenido gráfico independiente.');
      }
      if(extracted.regions>extracted.tableCount&&!ignoreCover&&!ignoreIndex){
        warnings.push('Página '+i+': '+(extracted.regions-extracted.tableCount)+' zona(s) con estructura de tabla pendientes de revisión.');
@@ -1473,6 +1659,30 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
        warnings.push('Página 1: portada reemplazada; se conservó el contenido operativo que aparecía después de la carátula.');
      }
      for(const b of extracted.blocks){
+       // Para los fragmentos estructuralmente complejos, comparar antes de decidir.
+       if(tsfRiskyTable(b)||b.kind==='rescue'){
+         const reason=b.kind==='rescue'?'La extracción no ubicó con certeza este bloque de texto.':'Esta tabla tiene columnas, fusiones o longitud que pueden producir desfases.';
+         const picked=await tsfChooseBlock(page,plan,b,i,++reviewNumber,reason);
+         if(picked.choice==='original'){
+           const fig=picked.preview;fig.id='rIdTSFFigure'+(figures.length+1);fig.name='tsf_fragmento_original_'+(figures.length+1)+'.png';
+           fig.xml=fig.xml.replace(/rIdTSFFigure\d+/g,fig.id);
+           figures.push(fig);body.push(fig.xml);lastEmitted={kind:'figure',page:i};
+           warnings.push('Página '+i+': un fragmento se dejó como imagen original por elección del usuario.');
+           continue;
+         }
+         warnings.push('Página '+i+': un fragmento se reconstruyó como editable por elección del usuario; revisar fidelidad.');
+       }
+       if(b.kind==='rescue'){
+         body.push(tsfBlockHtmlXml(b));paragraphs++;lastEmitted={...b,page:i,landscape:plan.landscape};
+         continue;
+       }
+       if(b.kind==='ambiguousTable'){
+         // La persona eligió expresamente usar la reconstrucción tentativa.
+         // Conservamos cada celda como elemento Word editable.
+         body.push(tsfTableXml(b.region,b.data,plan.landscape));tables++;
+         lastEmitted={kind:'table',region:b.region,data:b.data,page:i,landscape:plan.landscape};
+         continue;
+       }
        if(b.kind==='table'){
          // A borderless accounting table may continue on the following PDF page.
          // Combine only consecutive tables with the same inferred columns.
@@ -1511,7 +1721,7 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
          figures.push(item);body.push(item.xml);lastEmitted={kind:'figure',page:i};
        }
      }
-     totalItems+=extracted.items.length;matchedItems+=extracted.items.length-extracted.missing.length;
+     totalItems+=extracted.items.length;matchedItems+=extracted.items.length;
      // Se preservan saltos de orientación y los PDF largos no se convierten en imágenes.
      // Sin saltos de página forzados: Word redistribuye párrafos y tablas editables.
 
@@ -1584,12 +1794,12 @@ form.addEventListener('submit',async e=>{
     if(ext==='pdf')showNotice('Analizando PDF. Los documentos con tablas, imágenes o columnas deben revisarse antes de aprobarse.','warning');
     const bytes=await f.arrayBuffer();
     const result=ext==='pdf'
-      ?await pdfToDocx(bytes,meta,msg=>showNotice(msg),{allowDraft:document.getElementById('pdf-draft').checked})
+      ?await pdfToDocx(bytes,meta,msg=>showNotice(msg))
       :await docxToDocx(bytes,meta);
     const outName=result.stats?.missingPages?.length?`${cleanFileName(meta.title)}_BORRADOR_INCOMPLETO_TSF.docx`:`${cleanFileName(meta.title)}_Estandarizado_TSF.docx`;
     saveDoc(result.out,outName);
     if(result.stats?.incomplete)showNotice('WORD DE REVISIÓN DESCARGADO. Comprueba las páginas con texto o tablas no recuperados antes de aprobar. Páginas que requieren recuperar datos: '+result.stats.affectedPages.join(', ')+'. '+result.warnings.join(' '),'warning');
-    else if(result.warnings.length)showNotice('Word generado y descargado. Revisión recomendada: '+result.warnings.join(' '),'warning');
+    else if(result.warnings.length)showNotice('Word generado y descargado. Se aplicaron tus elecciones de revisión.  '+result.warnings.join(' '),'warning');
     else showNotice('Word generado y descargado. Revisa el diseño y los cambios de página antes de aprobarlo.');
   }catch(err){console.error('Error de estandarización:',err);showNotice(err.message||'No fue posible generar el documento.','error');}
   finally{button.disabled=false;buttonLabel.textContent='Generar Word';}
