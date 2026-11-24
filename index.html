@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.25 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.26 · GitHub Pages</footer>
 <!-- TSF v1.25: restaura jerarquía y formato v1.23, ignora índice del PDF fuente, separa narrativa numerada de títulos y valida texto sin falsos positivos. -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -1878,6 +1878,52 @@ function tsfRemoveSourceFurniture(plan){
  const kept=plan.items.filter(a=>a.y>=h*.112);
  return {...plan,items:kept,footerRemoved:plan.items.length-kept.length};
 }
+/* TSF v1.26 — Filtro EXCLUSIVO de carátula y encabezado de origen.
+   No modifica reglas de títulos, índice, sangrías, tipografía ni figuras del cuerpo. */
+function tsfIsPdfDecorativeCover(plan,pageNumber){
+ if(pageNumber!==1)return false;
+ const giant=(plan.graphics?.images||[]).some(b=>{
+   const w=b.right-b.left,h=b.top-b.bottom;
+   return w>plan.width*.72 && h>plan.height*.53 &&
+          w*h>plan.width*plan.height*.47;
+ });
+ if(!giant)return false;
+ const words=(plan.items||[]).map(a=>String(a.str||'')).join(' ')
+   .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').toUpperCase();
+ // Una imagen de cuerpo a página completa NO es necesariamente una portada:
+ // exigir evidencias de carátula institucional/título o índice de origen.
+ const hasDocumentTitle=/\b(?:PROCEDIMIENTO|POLITICA|MANUAL|REGLAMENTO|INSTRUCTIVO)\b/.test(words);
+ const sourceIndex=/\bINDICE\b/.test(words)&&/\b(?:I\.|II\.|III\.|IV\.)\s+/.test(words);
+ const hasBodyChapter=/\b(?:I|II|III|IV|V)\.\s+(?:INTRODUCCION|OBJETIVO|ALCANCE|MARCO|GENERALIDADES)\b/.test(words);
+ const wordCount=(words.match(/\b[\p{L}\p{N}]+\b/gu)||[]).length;
+ return sourceIndex || (hasDocumentTitle && !hasBodyChapter && wordCount<=60);
+}
+function tsfStripPdfRunningHeader(plan,rawItems,pageNumber){
+ if(pageNumber<=1)return plan;
+ const h=plan.height;
+ // El encabezado repetido está en la franja superior y contiene código,
+ // fecha/versión y número de página. No usar solo el tamaño de fuente.
+ const boundary=h-Math.min(106,h*.13);
+ const upper=(rawItems||[]).filter(a=>a&&typeof a.str==='string'&&
+    Array.isArray(a.transform)&&a.transform[5]>=boundary && a.transform[5]<h+3);
+ const content=upper.map(a=>a.str).join(' ').normalize('NFD')
+   .replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').toLowerCase();
+ const signature=/\bcodigo\s*:/.test(content)&&
+   /\b(?:actualizacion|version|fecha\s+de\s+actualizacion)\s*:/.test(content)&&
+   /\bpagina\s*:/.test(content);
+ if(!signature)return plan;
+ const kept=plan.items.filter(a=>a.y<boundary);
+ // Mantener ilustraciones operativas del cuerpo y descartar solamente
+ // las que estén completamente dentro de la franja del encabezado antiguo.
+ const g=plan.graphics;
+ const keptImages=g.images.filter(b=>!(b.bottom>=boundary-3 && b.top>boundary));
+ const keptH=g.h.filter(a=>a.y<boundary);
+ const keptV=g.v.filter(a=>!(a.y1>=boundary-3 && a.y2>=boundary-3));
+ const keptRegions=plan.regions.filter(r=>!(r.bottom>=boundary-3 && r.top>boundary));
+ return {...plan,items:kept,graphics:{...g,images:keptImages,h:keptH,v:keptV},
+   regions:keptRegions,sourceHeaderRemoved:plan.items.length-kept.length,
+   sourceHeaderDetected:true};
+}
 function tsfOriginalCover(plan,pageNumber){
  if(pageNumber!==1)return false;
  const text=plan.items.map(a=>a.str).join(' ').replace(/\s+/g,' ').trim();
@@ -2286,10 +2332,13 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      const intactImages=tsfUneditableImageEvidence(plan);
      // Las imágenes (incluidas matrices rasterizadas) se conservan, no se interpretan.
      // La extracción de texto/tablas nativos continúa como hasta ahora.
-     if(intactImages.length)warnings.push('Página '+i+': '+intactImages.length+' imagen(es) conservada(s) visualmente sin OCR. Su contenido gráfico no es editable.');
+
      plan=tsfRemoveSourceFurniture(plan);
      if(plan.footerRemoved && i===2)warnings.push('Se detectaron y excluyeron pies de página antiguos repetidos; se usa únicamente el pie TSF.');
-     const bareCover=tsfOriginalCover(plan,i);
+     // v1.26: detectar encabezados institucionales repetidos por tres metadatos
+     // en una franja superior. No se tocan capturas ni imágenes operativas.
+     plan=tsfStripPdfRunningHeader(plan,txt.items,i);
+     const bareCover=tsfOriginalCover(plan,i)||tsfIsPdfDecorativeCover(plan,i);
      if(i===1){
        tsfPdfMeta(plan,meta);
        const firstPageText=plan.items.map(a=>a.str).join(' ').toUpperCase();
@@ -2297,6 +2346,7 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      }
      const pageText=plan.items.map(a=>a.str).join(' ');
      const ignoreCover=i===1&&sourceCover;
+     if(intactImages.length&&!ignoreCover)warnings.push('Página '+i+': '+intactImages.length+' imagen(es) conservada(s) visualmente sin OCR. Su contenido gráfico no es editable.');
      const isOriginalIndex=tsfIsSourcePdfIndex(plan,i);
      if(isOriginalIndex)pdfOriginalIndexHints.push(...tsfPdfIndexHints(plan));
      const ignoreIndex=!ignoreCover && (isOriginalIndex ||
