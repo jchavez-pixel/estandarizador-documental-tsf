@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.27 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.28 · GitHub Pages</footer>
 <!-- TSF v1.27: preserva el diseño v1.26 y elimina selectivamente los índices originales llamados «Contenido» o «Índice». -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -456,6 +456,21 @@ function tsfSetHeadingGeometry(doc,par){
   let jc=firstNS(ppr,'jc');
   if(!jc){jc=node(doc,'jc');ppr.appendChild(jc);}
   jc.setAttributeNS(NS.w,'w:val','left');
+  // v1.28: ÚNICAMENTE títulos numerados de niveles 1, 2, 3.
+  // No afecta párrafos numerados que no son títulos ni títulos no numerados.
+  if(outline && !outline.roman)tsfApplyNumericHeadingSize(doc,par,level);
+}
+function tsfApplyNumericHeadingSize(doc,par,level){
+ const halfPoints=level===1?22:level===2?20:18; // Arial 11 / 10 / 9
+ for(const r of by(par,'r')){
+   if(isInsideRevision(r))continue;
+   const rp=requireChild(doc,r,'rPr');
+   for(const tag of ['sz','szCs']){
+     let n=firstNS(rp,tag);
+     if(!n){n=node(doc,tag);rp.appendChild(n);}
+     n.setAttributeNS(NS.w,'w:val',String(halfPoints));
+   }
+ }
 }
 
 function cleanDirectRunStyle(doc){
@@ -1843,7 +1858,7 @@ function tsfBlockHtmlXml(pBlock){
  // convierte por sí solo un párrafo explicativo en título.
  const heading=/^TSFH[12]$/.test(pBlock.style||'') ||
    (pBlock.style==='TSFH3' && (realLevel3 || /:\s*$/.test(pBlock.text||'')));
- const sz=level3?9:(heading?11:9);
+ const sz=level3?9:(heading && outline && !outline.roman && outline.level===2 ? 10 : (heading?11:9));
  const indent=Number(pBlock.indent)||0;
 // A common Word list geometry is left=0.25in, hanging=0.14in: the label
   // starts before the text column and wrapped lines follow the text column.
@@ -1877,6 +1892,67 @@ function tsfRemoveSourceFurniture(plan){
  if(!confirmed)return {...plan,footerRemoved:0};
  const kept=plan.items.filter(a=>a.y>=h*.112);
  return {...plan,items:kept,footerRemoved:plan.items.length-kept.length};
+}
+/* TSF v1.28 — Pie de página original: EXCLUSIÓN SELECTIVA Y SEGURA.
+   Exigir firma institucional + marcador de página en la franja inferior.
+   Retirar solamente las líneas identificadas, no borrar una banda completa
+   (puede existir texto operativo válido junto al pie o al final de una hoja).
+   «Propietario» se retira exclusivamente si es un metadato de cabecera
+   repetido en esa misma plantilla y se confirmó el pie original. */
+function tsfStripSourcePdfFooter(plan,rawItems,pageNumber){
+ const empty={...plan,sourceFooterDetected:false,sourceFooterRemoved:0};
+ const h=plan.height, raw=plan.items||[];
+ if(!raw.length)return empty;
+ const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+   .replace(/\s+/g,' ').toLowerCase().trim();
+ const strip=(t)=>norm(t).replace(/\u00ad/g,'');
+ // PDF.js entrega el pie en varias piezas y la segunda línea puede estar
+ // bajo el límite mínimo de texto. Para confirmar, inspeccionar también rawItems.
+ const original=(rawItems||[]).filter(x=>x&&typeof x.str==='string'&&Array.isArray(x.transform))
+   .map(x=>({str:String(x.str||''),x:x.transform[4],y:x.transform[5]}));
+ const bottomMax=Math.min(111,h*.14);
+ const footRaw=original.filter(x=>x.y>=34&&x.y<=bottomMax);
+ const marks=tsfCoordGroups(footRaw.map(x=>x.y),3).map(g=>{
+   const parts=footRaw.filter(a=>Math.abs(a.y-g.mean)<3).sort((a,b)=>a.x-b.x);
+   return {y:g.mean,text:parts.map(a=>a.str).join(' ')};
+ }).filter(x=>x.text.trim());
+ const legal=marks.find(r=>{
+   const z=strip(r.text);
+   return (/este documento es propiedad de total servicios financieros/.test(z)
+       && /prohibida su reproduccion/.test(z)) ||
+     (/este documento es de uso interno y exclusivo de total servicios financieros/.test(z)
+       && /prohibida su reproduccion/.test(z));
+ });
+ if(!legal)return empty;
+ const pageRow=marks.find(r=>Math.abs(r.y-legal.y)<7 &&
+   /\bpagina\s*:?\s*\d{1,3}(?:\s+de\s*\d{1,3})?\b/i.test(strip(r.text)));
+ if(!pageRow)return empty; // Nunca borrar un texto solo por su vocabulario.
+ const footerYs=marks.filter(r=>r.y<=legal.y+3 && r.y>=legal.y-17 &&
+    (r.y>legal.y-5 || /(?:transmision sin la autorizacion|correspondiente\.?|version impresa no es valida)/.test(strip(r.text))))
+    .map(r=>r.y);
+ const removed=new Set();
+ for(const a of raw){
+   if(footerYs.some(y=>Math.abs(y-a.y)<3))removed.add(a.index);
+ }
+ // Un metadato de cabecera del PDF puede figurar una y otra vez al cambiar de
+ // página. Solo retirar «Propietario» si tenemos la firma de pie confirmada y
+ // se encuentra en la cabecera, sin afectar frases del contenido principal.
+ if(pageNumber>1){
+   const head=raw.filter(a=>a.y>h-152 && a.y<h-102);
+   const rows=tsfCoordGroups(head.map(a=>a.y),3).map(g=>{
+     const xs=head.filter(a=>Math.abs(a.y-g.mean)<3).sort((a,b)=>a.x-b.x);
+     return {items:xs,text:xs.map(a=>a.str).join(' ')};
+   });
+   for(const row of rows){
+     if(/^propietario\s*:\s*(?:gerencia|area|oficina|unidad|departamento|direcci[oó]n)\b/i.test(strip(row.text))){
+       for(const a of row.items)removed.add(a.index);
+     }
+   }
+ }
+ if(!removed.size)return empty;
+ const items=raw.filter(a=>!removed.has(a.index));
+ return {...plan,items,sourceFooterDetected:true,sourceFooterRemoved:removed.size,
+   footerRemoved:(plan.footerRemoved||0)+removed.size};
 }
 /* TSF v1.26 — Filtro EXCLUSIVO de carátula y encabezado de origen.
    No modifica reglas de títulos, índice, sangrías, tipografía ni figuras del cuerpo. */
@@ -2369,6 +2445,9 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      // La extracción de texto/tablas nativos continúa como hasta ahora.
 
      plan=tsfRemoveSourceFurniture(plan);
+     // v1.28: pie institucional original y paginación: excluir solo si se
+     // confirma la leyenda legal, la página y la geometría del pie.
+     plan=tsfStripSourcePdfFooter(plan,txt.items,i);
      if(plan.footerRemoved && i===2)warnings.push('Se detectaron y excluyeron pies de página antiguos repetidos; se usa únicamente el pie TSF.');
      // v1.26: detectar encabezados institucionales repetidos por tres metadatos
      // en una franja superior. No se tocan capturas ni imágenes operativas.
