@@ -317,7 +317,7 @@ const styleDefinition = [
   ['TSFH2', 'Título TSF 2', 22, '242424', true],
   ['TSFH3', 'Título TSF 3', 22, '242424', true]
   ,['TSFMath','Fórmula original editable',18,'242424',false]
-].map(([id,label,size,color,bold])=>`<w:style w:type="paragraph" w:styleId="${id}" w:customStyle="1"><w:name w:val="${esc(label)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="${bold?165:0}" w:after="${bold?75:95}" w:line="250" w:lineRule="auto"/>${bold?'':'<w:jc w:val="both"/>'}${bold?'<w:keepNext/>':''}</w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="${color}"/><w:sz w:val="${size}"/>${bold?'<w:b/>':''}</w:rPr></w:style>`).join('');
+].map(([id,label,size,color,bold])=>`<w:style w:type="paragraph" w:styleId="${id}" w:customStyle="1"><w:name w:val="${esc(label)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="${bold?130:0}" w:after="${bold?65:55}" w:line="235" w:lineRule="auto"/>${bold?'':'<w:jc w:val="both"/>'}${bold?'<w:keepNext/>':''}</w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="${color}"/><w:sz w:val="${size}"/>${bold?'<w:b/>':''}</w:rPr></w:style>`).join('');
 function normalizeStyles(stylesDoc){
   const root=stylesDoc.documentElement;
   const current=new Map(Array.from(root.getElementsByTagNameNS(NS.w,'style')).map(x=>[W(x,'styleId'),x]));
@@ -1221,6 +1221,22 @@ function tsfTableData(region,items,v){
  }
  return {allRows,consumed};
 }
+// v1.15: Preserve original text, but avoid running several bullets in a single cell paragraph.
+// A bullet is a semantic paragraph boundary; no OCR, rewriting, or missing data insertion.
+function tsfCellParagraphUnits(text){
+  const out=[];
+  for(const line of String(text||'').split('\n')){
+    const matches=[...line.matchAll(/[●•]\s+/g)];
+    if(matches.length<2){out.push({text:line,isBullet:/^\s*[●•]\s+/.test(line)});continue;}
+    if(matches[0].index>0 && line.slice(0,matches[0].index).trim())out.push({text:line.slice(0,matches[0].index).trim(),isBullet:false});
+    for(let i=0;i<matches.length;i++){
+      const start=matches[i].index, stop=matches[i+1]?.index??line.length;
+      const segment=line.slice(start,stop).trim();
+      if(segment)out.push({text:segment,isBullet:true});
+    }
+  }
+  return out.length?out:[{text:'',isBullet:false}];
+}
 function tsfTableXml(region,data,landscape=false){
  const cols=region.cols,tot=landscape?13700:9110;
  const distance=cols[cols.length-1]-cols[0];
@@ -1235,7 +1251,15 @@ function tsfTableXml(region,data,landscape=false){
      let xml=`<w:tc><w:tcPr><w:tcW w:w="${widths.slice(cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0),cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0)+c.span).reduce((a,b)=>a+b,0)}" w:type="dxa"/>`;
      if(c.span>1)xml+=`<w:gridSpan w:val="${c.span}"/>`;
      xml+=`<w:shd w:fill="${shade}"/><w:vAlign w:val="center"/><w:tcMar><w:top w:w="40" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:start w:w="70" w:type="dxa"/><w:end w:w="70" w:type="dxa"/></w:tcMar></w:tcPr>`;
-     xml+=(c.text||'').split('\n').map(t=>`<w:p><w:pPr><w:spacing w:after="0" w:line="230" w:lineRule="auto"/><w:jc w:val="left"/>${c.align==='center'?'<w:jc w:val="center"/>':''}${c.align==='right'?'<w:jc w:val="right"/>':''}</w:pPr>${c.source?.length?tsfRichTextXml(t,c.source,{forceSizePt:9}):tsfRichFragment(t,{size:9},{forceBold:false,forceSizePt:9})}</w:p>`).join('')||'<w:p/>';
+     xml+=tsfCellParagraphUnits(c.text).map(unit=>{
+        const t=unit.text;
+        // Multibullet cells must be left-aligned and have a hanging bullet indent;
+        // only inherently numeric cells retain the original centered/right alignment.
+        const jc=unit.isBullet?'left':(['center','right'].includes(c.align)?c.align:'left');
+        const ind=unit.isBullet?'<w:ind w:left="300" w:hanging="190"/>':'';
+        const format=`<w:pPr>${ind}<w:spacing w:before="0" w:after="${unit.isBullet?55:0}" w:line="230" w:lineRule="auto"/><w:jc w:val="${jc}"/></w:pPr>`;
+        return `<w:p>${format}${c.source?.length?tsfRichTextXml(t,c.source,{forceSizePt:9}):tsfRichFragment(t,{size:9},{forceBold:false,forceSizePt:9})}</w:p>`;
+      }).join('')||'<w:p/>';
      return xml+'</w:tc>';
    }).join('')}</w:tr>`;
  }).join('');
@@ -1259,15 +1283,25 @@ function tsfPdfParagraphs(items,base){
    const sourceNote=tsfIsSourceNote(line.text);
    const formula=/^(?:[\s(]*[𝐅𝐄𝐀𝑪𝑨𝑹𝑅𝐿A-Z]{2,10}[\s)]*=|(?:FEA|CAR|RL)\s*=)/u.test(line.text);
    const heading=sourceNote?'TSFSource':formula?'TSFMath':headingFromPdf(line,base);
-   const bullet=/^\s*(?:[•●○◦–-]|\d+[.)])\s/.test(line.text);
+   const letterList=/^[a-z][.)]\s+/u.test(line.text);
+    const bullet=/^\s*(?:[•●○◦–-]|\d+[.)])\s/.test(line.text);
+    const listStart=letterList||bullet;
    if(isReference(line)){flush();paragraphs.push({text:line.text,style:'TSFBody',reference:true,indent:sourceIndent(line),source:[...line.items],y:line.y});continue;}
    if(sourceNote){
      flush();current={text:line.text,style:'TSFSource',indent:0,bullet:false,x:line.x,lastY:line.y,source:[...line.items],y:line.y,fontSize:line.size};
      continue;
    }
-   if(heading!=='TSFBody'){flush();paragraphs.push({text:line.text,style:heading,indent:sourceIndent(line),source:[...line.items],y:line.y});continue;}
+   const previousHeading=paragraphs[paragraphs.length-1];
+    const priorSize=previousHeading?.source?.length?Math.max(...previousHeading.source.map(a=>a.size||0)):0;
+    const boldNow=line.items.some(a=>/bold|heavy|semi.?bold/i.test(a.fontName||''));
+    const headingContinuation=previousHeading && /^TSFH[123]$/.test(previousHeading.style) &&
+       /^\d+(?:\.\d+)+\.?\s/.test(previousHeading.text) && !tsfOutlineNumber(line.text) &&
+       previousHeading.y-line.y>0 && previousHeading.y-line.y<Math.max(17,base*1.7) &&
+       boldNow && Math.abs(priorSize-line.size)<1.4 && line.text.length<135;
+    if(headingContinuation){flush();previousHeading.text+=' '+line.text;previousHeading.source.push(...line.items);continue;}
+    if(heading!=='TSFBody'){flush();paragraphs.push({text:line.text,style:heading,indent:0,source:[...line.items],y:line.y});continue;}
    // Un punto de lista empieza párrafo, pero puede extenderse en varias líneas.
-   if(bullet){flush();current={text:line.text,style:'TSFBody',indent:Math.max(10,sourceIndent(line)),bullet:true,x:line.x,lastY:line.y,firstY:line.y,source:[...line.items],y:line.y};continue;}
+   if(listStart){flush();current={text:line.text,style:'TSFBody',indent:0,bullet:true,listKind:letterList?'alphabetic':'bullet',x:line.x,lastY:line.y,firstY:line.y,source:[...line.items],y:line.y};continue;}
    if(current && current.style==='TSFSource'){
      const gap=current.lastY-line.y;
      // Solo agregar una segunda línea si mantiene tamaño, sangría y distancia
@@ -1281,9 +1315,9 @@ function tsfPdfParagraphs(items,base){
      const gap=current.lastY-line.y;
      const indent=Math.abs(line.x-current.x);
      // Una viñeta desplaza su texto ~12-25 pt: admitir esta diferencia.
-     const aligned=indent < (current.bullet?35:20);
+     const aligned=indent < (current.bullet?47:20);
      const verticallyNear=gap>0 && gap<Math.max(base*1.85,19);
-     const startsNew=/^\d{1,2}\.\s+/.test(line.text);
+     const startsNew=/^(?:[a-z][.)]\s+|[•●○◦]\s+|\d{1,2}[.)]\s+)/u.test(line.text);
      if(aligned&&verticallyNear&&!startsNew){
        // La distribución justificada puede generar espacios grandes visuales;
        // aquí reconstruimos UNA oración y dejamos que Word componga las líneas.
@@ -1312,9 +1346,16 @@ function tsfBlockHtmlXml(pBlock){
  const heading=/^TSFH[123]$/.test(pBlock.style||'');
  const sz=heading?11:9;
  const indent=Number(pBlock.indent)||0;
- const indentation=indent>0?`<w:ind w:left="${Math.round(indent*20)}"${pBlock.bullet?' w:hanging="180"':''}/>`:'';
- const alignment=pBlock.reference||pBlock.style==='TSFMath'?'left':(heading?'left':(tsfPdfParagraphAlign(pBlock)||'both'));
- return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}<w:jc w:val="${alignment}"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz})}</w:p>`;
+// A common Word list geometry is left=0.25in, hanging=0.14in: the label
+  // starts before the text column and wrapped lines follow the text column.
+  const indentation=pBlock.listKind==='alphabetic' ? '<w:ind w:left="440" w:hanging="260"/>'
+    : pBlock.listKind==='bullet' ? '<w:ind w:left="440" w:hanging="220"/>'
+    : heading ? '<w:ind w:left="0" w:firstLine="0"/>'
+    : indent>0 ? `<w:ind w:left="${Math.round(Math.min(indent,65)*20)}"/>` : '';
+  const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
+  const before=heading?150:0,after=heading?65:(pBlock.bullet?65:55);
+  const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="235" w:lineRule="auto"/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
+  return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz})}</w:p>`;
 }
 // Remove source footer/header furniture only in the repeated, geometrically validated zone.
 // This prevents 20 occurrences of "Versión / Manual Específico / Diciembre" from
@@ -1377,7 +1418,7 @@ function tsfBorderlessAccountTables(items,landscape){
  }
  return {tables,consumed};
 }
-/* TSF v1.14: tablas sin bordes. Se exige evidencia geométrica de columnas repetidas;
+/* TSF v1.15: tablas sin bordes. Se exige evidencia geométrica de columnas repetidas;
    nunca se completan valores desconocidos ni se sustituyen cifras. */
 function tsfUnruledFinancialTables(items){
  const consumed=new Set(),tables=[];
@@ -1542,7 +1583,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
 }
 
 
-/* TSF v1.14 — Revisión por fragmento y estructura original. */
+/* TSF v1.15 — Revisión por fragmento y estructura original. */
 const tsfReviewOverlay=document.getElementById('tsf-review-overlay');
 function tsfReviewPreview(block){
  const target=document.getElementById('tsf-review-preview');target.replaceChildren();
