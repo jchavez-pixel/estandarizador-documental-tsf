@@ -145,8 +145,8 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
 
 
       <section class="panel" id="pdf-mode-panel" aria-labelledby="pdf-mode-title" hidden>
-        <div class="panel-title"><span class="step">PDF</span><div><h2 id="pdf-mode-title">PDF a Word: texto editable e imágenes conservadas</h2><p>Detección de tablas, conservación de imágenes y control de fidelidad.</p></div></div>
-        <div class="pdf-hint" role="note"><strong>Salida Word (.docx):</strong> el motor conserva tamaños y énfasis del texto recuperable, reconstruye tablas con texto digital y mantiene las imágenes originales como figuras individuales. No aplica OCR ni transforma imágenes en tablas. No convierte páginas de texto completo en fotografías.</div>
+        <div class="panel-title"><span class="step">PDF</span><div><h2 id="pdf-mode-title">PDF a Word: texto editable e imágenes conservadas</h2><p>Tablas editables sin alterar el orden; Arial 11 para subtítulos y Arial 9 para contenido.</p></div></div>
+        <div class="pdf-hint" role="note"><strong>Salida Word (.docx):</strong> el motor utiliza Arial 11 en subtítulos y Arial 9 en contenido; conserva énfasis y sangrías recuperables, reconstruye tablas con texto digital y mantiene las imágenes originales como figuras individuales. No aplica OCR ni transforma imágenes en tablas. No convierte páginas de texto completo en fotografías.</div>
         <div id="pdf-check" class="pdf-hint" style="margin-top:8px;display:none" aria-live="polite"></div>
         <div class="pdf-review-info">
           <span class="pdf-review-glyph">⇄</span>
@@ -301,7 +301,7 @@ function hex(s){return String(s).replace(/[^A-Fa-f0-9]/g,'').slice(0,6).toUpperC
 
 // El estilo TSFSource es un fallback; el formato real del PDF prevalece a nivel de cada fragmento.
 // Las indicaciones de uso y los diagnósticos no se escriben dentro del Word.
-const TSF_SOURCE_STYLE = `<w:style w:type="paragraph" w:styleId="TSFSource" w:customStyle="1"><w:name w:val="Fuente documental TSF"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="55" w:after="90" w:line="220" w:lineRule="auto"/><w:jc w:val="left"/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="16"/><w:color w:val="555555"/><w:i/></w:rPr></w:style>`;
+const TSF_SOURCE_STYLE = `<w:style w:type="paragraph" w:styleId="TSFSource" w:customStyle="1"><w:name w:val="Fuente documental TSF"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="55" w:after="90" w:line="220" w:lineRule="auto"/><w:jc w:val="left"/></w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="16"/><w:color w:val="555555"/><w:i/></w:rPr></w:style>`;
 function tsfIsSourceNote(text){
   const s=String(text||'').trim();
   return /^(?:Fuentes?|Referencias?\s+bibliogr[aá]ficas?|Elaboraci[oó]n\s+propia)\s*[:：]\s*\S/i.test(s);
@@ -312,11 +312,11 @@ function tsfIsNoteParagraph(par){
   return tsfIsSourceNote(words) || W(firstNS(pp||par,'pStyle')||par,'val')==='TSFSource';
 }
 const styleDefinition = [
-  ['TSFBody', 'Texto TSF', 20, '242424', false],
-  ['TSFH1', 'Título TSF 1', 25, '242424', true],
+  ['TSFBody', 'Texto TSF', 18, '242424', false],
+  ['TSFH1', 'Título TSF 1', 22, '242424', true],
   ['TSFH2', 'Título TSF 2', 22, '242424', true],
-  ['TSFH3', 'Título TSF 3', 20, '242424', true]
-  ,['TSFMath','Fórmula original editable',20,'242424',false]
+  ['TSFH3', 'Título TSF 3', 22, '242424', true]
+  ,['TSFMath','Fórmula original editable',18,'242424',false]
 ].map(([id,label,size,color,bold])=>`<w:style w:type="paragraph" w:styleId="${id}" w:customStyle="1"><w:name w:val="${esc(label)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="${bold?165:0}" w:after="${bold?75:95}" w:line="250" w:lineRule="auto"/>${bold?'':'<w:jc w:val="both"/>'}${bold?'<w:keepNext/>':''}</w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="${color}"/><w:sz w:val="${size}"/>${bold?'<w:b/>':''}</w:rPr></w:style>`).join('');
 function normalizeStyles(stylesDoc){
   const root=stylesDoc.documentElement;
@@ -598,7 +598,7 @@ function tableHasHeader(row){
   const hits=strings.filter(x=>likelyLabels.test(x)).length;
   const allBold=cells.every(c=>{
     const runs=by(c,'r').filter(r=>by(r,'t').some(t=>(t.textContent||'').trim()));
-    return runs.length>0 && runs.every(r=>{const rp=firstNS(r,'rPr');return rp&&firstNS(rp,'b');});
+    return runs.length>0 && runs.every(r=>{const rp=firstNS(r,'rPr'),b=rp&&firstNS(rp,'b');return !!b && !['0','false','off'].includes(String(W(b,'val')||'1').toLowerCase());});
   });
   return hits>=Math.min(2,cells.length)||allBold;
 }
@@ -626,9 +626,7 @@ function improveTables(doc){
       for(let j=0;j<cells.length;j++){
         const fill=(header&&i===0)?'F5BD00':(labelTable&&j%2===0?'FFF1C9':i%2===1?'FFFFFF':'F8F9FA');
         colorCell(doc,cells[j],fill);
-        for(const par of by(cells[j],'p')){
-          if(by(par,'t').map(x=>x.textContent||'').join('').length>=130 && !(header&&i===0))setJustification(doc,par);
-        }
+        // Conservar la alineación de cada celda original, sin justificar forzosamente.
       }
     }
   }
@@ -1018,10 +1016,11 @@ function tsfSourceFont(item){
  return {family,bold:isBold,italic:isItalic,
    sz:Number.isFinite(pdfSize)&&pdfSize>0?Math.max(8,Math.min(144,Math.round(pdfSize*2))):20};
 }
-function tsfRichFragment(text,item,{forceBold=false,overrideColor='242424',note=false}={}){
- const f=tsfSourceFont(item||{}), bold=forceBold||f.bold, italic=note?f.italic:f.italic;
+function tsfRichFragment(text,item,{forceBold=false,overrideColor='242424',note=false,forceSizePt=null}={}){
+ const f=tsfSourceFont(item||{}), bold=forceBold||f.bold, italic=f.italic;
+ const size=forceSizePt===null?f.sz:Math.round(Number(forceSizePt)*2);
  const fName=esc(f.family);
- return `<w:r><w:rPr><w:rFonts w:ascii="${fName}" w:hAnsi="${fName}" w:cs="${fName}"/><w:sz w:val="${f.sz}"/><w:szCs w:val="${f.sz}"/><w:color w:val="${hex(overrideColor)}"/><w:b w:val="${bold?'1':'0'}"/><w:i w:val="${italic?'1':'0'}"/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+ return `<w:r><w:rPr><w:rFonts w:ascii="${fName}" w:hAnsi="${fName}" w:cs="${fName}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/><w:color w:val="${hex(overrideColor)}"/><w:b w:val="${bold?'1':'0'}"/><w:i w:val="${italic?'1':'0'}"/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
 }
 function tsfRichTokens(items){
  if(!items||!items.length)return [];
@@ -1036,16 +1035,16 @@ function tsfRichTokens(items){
    for(const it of its){
      const txt=String(it.str||'');
      if(prev){const gap=it.x-prev.x-prev.width;
-       if(gap>1.5&&!/\s$/.test(String(prev.str))&&!/^\s/.test(txt))tokens.push({text:' ',item:it});
+       if(gap>0.8&&!/\s$/.test(String(prev.str))&&!/^\s/.test(txt))tokens.push({text:' ',item:it});
      }
      tokens.push({text:txt,item:it});prev=it;
    }
  }
  return tokens;
 }
-function tsfRichTextXml(text,items,{forceBold=false,note=false}={}){
+function tsfRichTextXml(text,items,{forceBold=false,note=false,forceSizePt=null}={}){
  const tokens=tsfRichTokens(items);
- if(!tokens.length)return tsfRichFragment(text,{size:10},{forceBold});
+ if(!tokens.length)return tsfRichFragment(text,{size:forceSizePt||9},{forceBold,forceSizePt});
  const normalize=x=>String(x||'').replace(/\s+/g,' ').trim();
  const found=normalize(tokens.map(t=>t.text).join(''));
  const wanted=normalize(text);
@@ -1058,7 +1057,7 @@ function tsfRichTextXml(text,items,{forceBold=false,note=false}={}){
      const current=weight.get(key)||{item:it,n:0};current.n+=String(it.str||'').length;weight.set(key,current);}
    const dominant=[...weight.values()].sort((a,b)=>b.n-a.n)[0]?.item || ordered[0] || {};
    const base={...dominant,size:sizes[Math.floor(sizes.length/2)]||10};
-   return tsfRichFragment(text,base,{forceBold});
+   return tsfRichFragment(text,base,{forceBold,forceSizePt});
  }
  // Suprimir espacios duplicados creados por la combinación de fragmentos PDF,
  // sin reescribir palabras ni signos del contenido fuente.
@@ -1068,7 +1067,7 @@ function tsfRichTextXml(text,items,{forceBold=false,note=false}={}){
    if(emitted.endsWith(' '))text=text.replace(/^ +/,'');
    if(!emitted)text=text.replace(/^ +/,'');
    if(!text)continue;
-   xml+=tsfRichFragment(text,t.item,{forceBold});emitted+=text;
+   xml+=tsfRichFragment(text,t.item,{forceBold,forceSizePt});emitted+=text;
  }
  return xml;
 }
@@ -1180,7 +1179,7 @@ function tsfCellText(items){
    let txt='',prev=null;
    for(const a of cells){
      const gap=prev?a.x-prev.x-prev.width:0;
-     if(prev&&gap>1.4 && !/\s$/.test(txt) && !/^\s/.test(a.str))txt+=' ';
+     if(prev&&gap>0.8 && !/\s$/.test(txt) && !/^\s/.test(a.str))txt+=' ';
      txt+=a.str;prev=a;
    }
    return txt.trim();
@@ -1236,7 +1235,7 @@ function tsfTableXml(region,data,landscape=false){
      let xml=`<w:tc><w:tcPr><w:tcW w:w="${widths.slice(cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0),cells.slice(0,cells.indexOf(c)).reduce((sum,k)=>sum+k.span,0)+c.span).reduce((a,b)=>a+b,0)}" w:type="dxa"/>`;
      if(c.span>1)xml+=`<w:gridSpan w:val="${c.span}"/>`;
      xml+=`<w:shd w:fill="${shade}"/><w:vAlign w:val="center"/><w:tcMar><w:top w:w="40" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:start w:w="70" w:type="dxa"/><w:end w:w="70" w:type="dxa"/></w:tcMar></w:tcPr>`;
-     xml+=(c.text||'').split('\n').map(t=>`<w:p><w:pPr><w:spacing w:after="0" w:line="230" w:lineRule="auto"/>${c.align==='center'?'<w:jc w:val="center"/>':''}${c.align==='right'?'<w:jc w:val="right"/>':''}</w:pPr>${c.source?.length?tsfRichTextXml(t,c.source):tsfRichFragment(t,{size:landscape?7:7.5},{forceBold:false})}</w:p>`).join('')||'<w:p/>';
+     xml+=(c.text||'').split('\n').map(t=>`<w:p><w:pPr><w:spacing w:after="0" w:line="230" w:lineRule="auto"/><w:jc w:val="left"/>${c.align==='center'?'<w:jc w:val="center"/>':''}${c.align==='right'?'<w:jc w:val="right"/>':''}</w:pPr>${c.source?.length?tsfRichTextXml(t,c.source,{forceSizePt:9}):tsfRichFragment(t,{size:9},{forceBold:false,forceSizePt:9})}</w:p>`).join('')||'<w:p/>';
      return xml+'</w:tc>';
    }).join('')}</w:tr>`;
  }).join('');
@@ -1251,19 +1250,24 @@ function tsfPdfParagraphs(items,base){
    return {y:row.y,x:a[0]?.x||0, text,size:Math.max(...a.map(v=>v.size)),items:a};
  }).filter(x=>x.text);
  const paragraphs=[];let current=null;
- const flush=()=>{if(current){delete current.lastY;delete current.x;delete current.bullet;delete current.firstY;paragraphs.push(current);current=null;}};
+ const xValues=lines.filter(l=>l.text.length>15).map(l=>l.x).sort((a,b)=>a-b);
+ const baseX=xValues[Math.floor(xValues.length*.12)]??(lines[0]?.x||0);
+ const sourceIndent=line=>Math.max(0,Math.min(72,Math.round((line.x-baseX)*.9)));
+ const isReference=line=>/^(?:Referencia|Referencias)\s*:/i.test(line.text);
+ const flush=()=>{if(current){delete current.lastY;delete current.x;delete current.firstY;paragraphs.push(current);current=null;}};
  for(const line of lines){
    const sourceNote=tsfIsSourceNote(line.text);
    const formula=/^(?:[\s(]*[𝐅𝐄𝐀𝑪𝑨𝑹𝑅𝐿A-Z]{2,10}[\s)]*=|(?:FEA|CAR|RL)\s*=)/u.test(line.text);
    const heading=sourceNote?'TSFSource':formula?'TSFMath':headingFromPdf(line,base);
    const bullet=/^\s*(?:[•●○◦–-]|\d+[.)])\s/.test(line.text);
+   if(isReference(line)){flush();paragraphs.push({text:line.text,style:'TSFBody',reference:true,indent:sourceIndent(line),source:[...line.items],y:line.y});continue;}
    if(sourceNote){
      flush();current={text:line.text,style:'TSFSource',indent:0,bullet:false,x:line.x,lastY:line.y,source:[...line.items],y:line.y,fontSize:line.size};
      continue;
    }
-   if(heading!=='TSFBody'){flush();paragraphs.push({text:line.text,style:heading,indent:0,source:[...line.items],y:line.y});continue;}
+   if(heading!=='TSFBody'){flush();paragraphs.push({text:line.text,style:heading,indent:sourceIndent(line),source:[...line.items],y:line.y});continue;}
    // Un punto de lista empieza párrafo, pero puede extenderse en varias líneas.
-   if(bullet){flush();current={text:line.text,style:'TSFBody',indent:220,bullet:true,x:line.x,lastY:line.y,firstY:line.y,source:[...line.items],y:line.y};continue;}
+   if(bullet){flush();current={text:line.text,style:'TSFBody',indent:Math.max(10,sourceIndent(line)),bullet:true,x:line.x,lastY:line.y,firstY:line.y,source:[...line.items],y:line.y};continue;}
    if(current && current.style==='TSFSource'){
      const gap=current.lastY-line.y;
      // Solo agregar una segunda línea si mantiene tamaño, sangría y distancia
@@ -1287,7 +1291,7 @@ function tsfPdfParagraphs(items,base){
        current.source.push(...line.items);current.lastY=line.y;continue;
      }
    }
-   flush();current={text:line.text,style:'TSFBody',indent:0,bullet:false,x:line.x,lastY:line.y,firstY:line.y,source:[...line.items],y:line.y};
+   flush();current={text:line.text,style:'TSFBody',indent:sourceIndent(line),reference:isReference(line),bullet:false,x:line.x,lastY:line.y,firstY:line.y,source:[...line.items],y:line.y};
  }
  flush();return paragraphs;
 }
@@ -1304,8 +1308,13 @@ function tsfPdfParagraphAlign(block){
  return '';
 }
 function tsfBlockHtmlXml(pBlock){
- if(pBlock.style==='TSFSource')return `<w:p><w:pPr><w:pStyle w:val="TSFSource"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{note:true})}</w:p>`;
- return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${pBlock.indent?'<w:ind w:left="260" w:hanging="160"/>':''}${pBlock.style==='TSFMath'?'<w:jc w:val="left"/>':tsfPdfParagraphAlign(pBlock)?`<w:jc w:val="${tsfPdfParagraphAlign(pBlock)}"/>`:''}</w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source)}</w:p>`;
+ if(pBlock.style==='TSFSource')return `<w:p><w:pPr><w:pStyle w:val="TSFSource"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{note:true,forceSizePt:8})}</w:p>`;
+ const heading=/^TSFH[123]$/.test(pBlock.style||'');
+ const sz=heading?11:9;
+ const indent=Number(pBlock.indent)||0;
+ const indentation=indent>0?`<w:ind w:left="${Math.round(indent*20)}"${pBlock.bullet?' w:hanging="180"':''}/>`:'';
+ const alignment=pBlock.reference||pBlock.style==='TSFMath'?'left':(heading?'left':(tsfPdfParagraphAlign(pBlock)||'both'));
+ return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}<w:jc w:val="${alignment}"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz})}</w:p>`;
 }
 // Remove source footer/header furniture only in the repeated, geometrically validated zone.
 // This prevents 20 occurrences of "Versión / Manual Específico / Diciembre" from
@@ -1368,6 +1377,82 @@ function tsfBorderlessAccountTables(items,landscape){
  }
  return {tables,consumed};
 }
+/* TSF v1.14: tablas sin bordes. Se exige evidencia geométrica de columnas repetidas;
+   nunca se completan valores desconocidos ni se sustituyen cifras. */
+function tsfUnruledFinancialTables(items){
+ const consumed=new Set(),tables=[];
+ const lines=tsfCoordGroups(items.map(a=>a.y),2.9).map(g=>({y:g.mean,items:items.filter(a=>Math.abs(a.y-g.mean)<2.9).sort((a,b)=>a.x-b.x)})).sort((a,b)=>b.y-a.y);
+ const lineText=l=>tsfCellText(l.items).replace(/\s+/g,' ').trim();
+ // Escalas de valoración en 2 columnas: cinco niveles repetidos en x estables.
+ for(const header of lines){
+   const ht=lineText(header);
+   if(!/Referencia\s*:\s*Ratio de morosidad/i.test(ht)||!/Nivel de Riesgo asociado/i.test(ht))continue;
+   const rows=lines.filter(l=>l.y<header.y && header.y-l.y<130).filter(l=>l.items.length>=2);
+   const matched=[];
+   for(const l of rows){
+     const label=l.items.filter(a=>a.x < header.items[0].x+125 && !consumed.has(a.index));
+     const value=l.items.filter(a=>a.x >= header.items[0].x+125 && !consumed.has(a.index));
+     const a=tsfCellText(label).trim(),b=tsfCellText(value).trim();
+     if(/^(?:Mayor|Moderado(?: Alto| Baja| Bajo)?|Insignificante)\s*:?$/i.test(a)&&/^(?:Más|Menos|De\s)/i.test(b))matched.push({line:l,label,value,a,b});
+   }
+   if(matched.length<4)continue;
+   matched.sort((a,b)=>b.line.y-a.line.y);
+   const left=Math.min(...matched.flatMap(x=>x.label.map(a=>a.x)))-7;
+   const middle=Math.min(...matched.flatMap(x=>x.value.map(a=>a.x)))-12;
+   const right=Math.max(...matched.flatMap(x=>x.value.map(a=>a.x+a.width)))+10;
+   if(middle-left<50||right-middle<50)continue;
+   for(const m of matched)for(const a of [...m.label,...m.value])consumed.add(a.index);
+   const data={allRows:matched.map(m=>[
+     {text:m.a,span:1,source:m.label,align:'left'},
+     {text:m.b,span:1,source:m.value,align:'left'}
+   ])};
+   tables.push({kind:'table',y:matched[0].line.y+7,region:{cols:[left,middle,right],left,right,top:matched[0].line.y+9,bottom:matched.at(-1).line.y-10,hasHeader:false},data});
+ }
+ // Matriz de límites y tolerancias: las líneas sin bordes muestran cuatro ejes
+ // Nº / Indicador / Límite / Tolerancia, y seis filas numeradas.
+ for(const head of lines){
+   const headers=head.items;
+   const number=headers.find(a=>/^(?:N[º°o]|Nro\.?)$/.test(a.str.trim()));
+   const indicator=headers.find(a=>/^Indicador\s*$/i.test(a.str.trim()));
+   const limit=headers.find(a=>/^L[ií]mite\s*$/i.test(a.str.trim()));
+   const tolerance=headers.find(a=>/^Tole/i.test(a.str.trim()));
+   if(!number||!indicator||!limit||!tolerance)continue;
+   if(!(number.x<indicator.x&&indicator.x<limit.x&&limit.x<tolerance.x))continue;
+   const chapter=lines.find(l=>l.y<head.y&&/^VIII\.\s/.test(lineText(l)));
+   const bottom=chapter?.y??head.y-380;
+   const nums=items.filter(a=>a.y<head.y-8&&a.y>bottom+5&&a.x>number.x-10&&a.x<indicator.x-48&&/^[1-9]\.$/.test(a.str.trim())).sort((a,b)=>b.y-a.y);
+   if(nums.length<4||!nums.some(a=>a.str.trim()==='1.'))continue;
+   const unique=[];for(const a of nums){if(!unique.some(b=>Math.abs(a.y-b.y)<4))unique.push(a);}
+   if(unique.length<4)continue;
+   const edges=[number.x-9,indicator.x-71,limit.x-35,tolerance.x-25,Math.max(tolerance.x+65,...items.filter(a=>a.y<head.y&&a.y>bottom).map(a=>a.x+a.width)) + 4];
+   if(edges.some((x,i)=>i&&x-edges[i-1]<17))continue;
+   const rowGroups=[];const headerCells=[];
+   for(let col=0;col<4;col++){
+     const source=items.filter(a=>a.y<=head.y+4&&a.y>unique[0].y+12&&a.x>=edges[col]&&a.x<edges[col+1]);
+     headerCells.push({text:col===3?'Tolerancia':tsfCellText(source),span:1,source:col===3?[]:source,align:'center'});
+   }
+   rowGroups.push(headerCells);
+   const captured=new Set();
+   for(const a of items.filter(a=>a.y<=head.y+4&&a.y>unique[0].y+12&&a.x>=edges[0]&&a.x<edges[4]))captured.add(a.index);
+   for(let r=0;r<unique.length;r++){
+     const hi=r===0?unique[0].y+16:unique[r].y+16;
+     const lo=r<unique.length-1?unique[r+1].y+16:Math.max(bottom,unique[r].y-40);
+     const rowItems=items.filter(a=>a.y<=hi&&a.y>lo&&a.x>=edges[0]&&a.x<edges[4]);
+     const cells=[];
+     for(let c=0;c<4;c++){
+       const selected=rowItems.filter(a=>a.x+a.width*.35>=edges[c] && a.x+a.width*.35<edges[c+1]);
+       selected.forEach(a=>captured.add(a.index));
+       cells.push({text:tsfCellText(selected),span:1,source:selected,align:c>=2?'center':'left'});
+     }
+     if(cells.filter(c=>c.text.trim()).length>=3)rowGroups.push(cells);
+   }
+   if(rowGroups.length<5)continue;
+   for(const n of captured)consumed.add(n);
+   tables.push({kind:'table',y:head.y+11,region:{cols:edges,left:edges[0],right:edges[4],top:head.y+12,bottom:bottom+1,hasHeader:true},data:{allRows:rowGroups},source:items.filter(a=>captured.has(a.index))});
+ }
+ return {tables,consumed};
+}
+
 function tsfPdfPlan(page,allItems,operatorList,styles={}){
  const height=page.view?.[3]||page.height||page.getViewport({scale:1}).height;
  const width=page.view?.[2]||page.width||page.getViewport({scale:1}).width;
@@ -1394,7 +1479,10 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  }
  const excluded=new Set();
  const tableBlocks=[];
- const inferred=tsfBorderlessAccountTables(items,plan.landscape);
+ const financial=(!ignoreCover&&!ignoreIndex)?tsfUnruledFinancialTables(items):{tables:[],consumed:new Set()};
+ tableBlocks.push(...financial.tables);
+ financial.consumed.forEach(id=>excluded.add(id));
+ const inferred=tsfBorderlessAccountTables(items.filter(a=>!excluded.has(a.index)),plan.landscape);
  for(const b of inferred.tables)tableBlocks.push(b);
  for(const n of inferred.consumed)excluded.add(n);
  for(const initialRegion of plan.regions){
@@ -1454,7 +1542,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
 }
 
 
-/* TSF v1.13 — Revisión por fragmento, no por archivo completo. */
+/* TSF v1.14 — Revisión por fragmento y estructura original. */
 const tsfReviewOverlay=document.getElementById('tsf-review-overlay');
 function tsfReviewPreview(block){
  const target=document.getElementById('tsf-review-preview');target.replaceChildren();
