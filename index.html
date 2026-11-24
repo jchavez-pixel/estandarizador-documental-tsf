@@ -275,7 +275,7 @@ function updatePdfPanel(){
 const esc = (s) => String(s == null ? '' : s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&apos;');
 const xmlDeclaration = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
 const namespaceString = `xmlns:w="${NS.w}" xmlns:r="${NS.r}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}"`;
-const W = (el, name) => el.getAttributeNS(NS.w, name) || el.getAttribute('w:' + name) || '';
+const W = (el, name) => (el && el.nodeType === 1) ? (el.getAttributeNS(NS.w, name) || el.getAttribute('w:' + name) || '') : '';
 const by = (root, tag) => Array.from(root.getElementsByTagNameNS(NS.w,tag));
 
 function xmlParse(xml, what='documento') {
@@ -431,6 +431,7 @@ function insertBeforeBody(doc,markup){const body=by(doc,'body')[0];if(!body)thro
 function setPstyle(doc,paragraph,styleId){const pp=requireChild(doc,paragraph,'pPr');let s=firstNS(pp,'pStyle');if(!s){s=node(doc,'pStyle');pp.insertBefore(s,pp.firstChild);}s.setAttributeNS(NS.w,'w:val',styleId);
   for(const old of Array.from(pp.children))if(['shd','pBdr'].includes(old.localName))pp.removeChild(old);
 }
+// TSF v1.19.1: corregido acceso nulo a w:pStyle en párrafos válidos.
 // TSF v1.19: SOLO los títulos numéricos de dos niveles (p.ej. 5.1)
 // reciben sangría. Los de tres niveles (p.ej. 5.2.2) y capítulos
 // permanecen al margen. Nunca se añaden espaciados a los títulos.
@@ -793,7 +794,8 @@ function tsfBreathingForGeneratedText(doc){
  const body=by(doc,'body')[0];if(!body)return;
  for(const par of childrenNS(body,'p')){
   const pp=firstNS(par,'pPr');const style=firstNS(pp||par,'pStyle');
-  if(W(style,'val')!=='TSFBody'||tsfIsNoteParagraph(par)||isInsideRevision(par))continue;
+  // Los párrafos sin w:pStyle son válidos en OOXML; no asumir que existe.
+  if(!pp || !style || W(style,'val')!=='TSFBody'||tsfIsNoteParagraph(par)||isInsideRevision(par))continue;
   let sp=firstNS(pp,'spacing');if(!sp){sp=node(doc,'spacing');pp.appendChild(sp);}
   const t=paragraphText(par).trim();const bullet=/^(?:[•●○◦]|[a-z][.)])\s*/i.test(t);
   sp.setAttributeNS(NS.w,'w:before','0');
