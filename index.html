@@ -198,8 +198,8 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.26 · GitHub Pages</footer>
-<!-- TSF v1.25: restaura jerarquía y formato v1.23, ignora índice del PDF fuente, separa narrativa numerada de títulos y valida texto sin falsos positivos. -->
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.27 · GitHub Pages</footer>
+<!-- TSF v1.27: preserva el diseño v1.26 y elimina selectivamente los índices originales llamados «Contenido» o «Índice». -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -2054,34 +2054,69 @@ function tsfPdfPlan(page,allItems,operatorList,styles={}){
  const regions=tsfRegions(graphics.h,graphics.v,width,height);
  return {items,graphics,regions,width,height,landscape:width>height};
 }
-// Detectar índices originales del PDF con evidencia de varias entradas de capítulo.
-// Al reconstruir se reemplazan por el índice corporativo: NO duplicar sus títulos.
+/* TSF v1.27 — Exclusión selectiva y conservadora de índices preexistentes.
+   Un índice del PDF puede llamarse «Contenido», «Índice» o «Tabla de contenidos».
+   SOLO se suprimen las filas confirmadas por numeración + líderes de puntos
+   + página/ref. Se conserva cualquier párrafo legítimo en la misma hoja. */
+function tsfScanSourcePdfIndex(plan,pageNumber){
+ const empty={found:false,plan,hints:[],removed:0,lines:0};
+ if(pageNumber>6 || !(plan.items||[]).length)return empty;
+ const raw=(plan.items||[]);
+ const rows=tsfCoordGroups(raw.map(a=>a.y),2.4).map(g=>{
+   const items=raw.filter(a=>Math.abs(a.y-g.mean)<2.4).sort((a,b)=>a.x-b.x);
+   return {y:g.mean,items,text:tsfCellText(items).replace(/\s+/g,' ').trim()};
+ }).filter(r=>r.text).sort((a,b)=>b.y-a.y);
+ const normalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+   .toUpperCase().replace(/\s+/g,' ').trim();
+ const titleIdx=rows.findIndex(r=>/^(?:INDICE|CONTENIDO|TABLA DE CONTENIDOS|SUMARIO)\s*:?\s*$/.test(normalize(r.text)));
+ if(titleIdx<0)return empty;
+ const numbered=/^\s*((?:[IVX]{1,9}|\d{1,2}(?:\.\d{1,2}){0,3})\.?)\s+([A-Za-zÁÉÍÓÚÜÑ][\s\S]*)$/iu;
+ const leader=/(?:\.{3,}|…{2,}|·{4,})/u;
+ const broken=/[¡!]?\s*error\s*!?\s*marcador\s+no\s+definido/i;
+ const reference=t=>leader.test(t)&&(/\s*\d{1,3}\s*$/.test(t)||broken.test(t));
+ const hasPage=t=>/\s\d{1,3}\s*$/.test(t)||broken.test(t.normalize('NFKC'));
+ // Una línea del índice puede perder los puntos al separarse en varias cajas;
+ // exigir número + referencia, y que haya suficientes entradas con líderes.
+ const entryRows=[],remove=new Set(),hints=[];
+ let witnessed=0,previous=null;
+ for(let i=titleIdx+1;i<rows.length;i++){
+   const r=rows[i];const match=r.text.match(numbered);
+   if(match){
+     const direct=hasPage(r.text)&&leader.test(r.text);
+     const next=rows[i+1];
+     const wrapped=!!next && r.y-next.y>0 && r.y-next.y<23 &&
+       !numbered.test(next.text) && leader.test(next.text) && hasPage(next.text);
+     if(!direct&&!wrapped){previous=null;continue;}
+     remove.add(i);if(wrapped)remove.add(i+1);
+     witnessed++;
+     const combined=r.text+(wrapped?' '+next.text:'');
+     const caption=combined.replace(numbered,'$2')
+       .replace(/\s*(?:\.{3,}|…{2,}|·{4,})[\s\S]*$/u,'')
+       .replace(/\s+\d{1,3}\s*$/,'').trim();
+     if(caption && caption.length<=190 && !hints.some(h=>h.number===match[1].replace(/\.$/,'')))
+       hints.push({number:match[1].replace(/\.$/,''),title:caption});
+     entryRows.push(i);previous=i;
+   }else if(previous!==null && i===previous+1 && rows[previous].y-r.y<23 &&
+     leader.test(r.text) && hasPage(r.text)){
+     remove.add(i);
+   }else previous=null;
+ }
+ // Triple verificación: rótulo formal, >=5 epígrafes y >=5 referencias
+ // reconocibles. Una mención aislada «Contenido» no basta para borrar texto.
+ if(entryRows.length<5 || witnessed<5)return empty;
+ remove.add(titleIdx);
+ const doomed=new Set();
+ for(const i of remove)for(const item of rows[i].items)doomed.add(item.index);
+ const kept=raw.filter(a=>!doomed.has(a.index));
+ return {found:true,plan:{...plan,items:kept},hints,removed:raw.length-kept.length,
+   lines:remove.size};
+}
+// Compatibilidad: sin copiar el índice original como cuerpo.
 function tsfIsSourcePdfIndex(plan,pageNumber){
- if(pageNumber>3)return false;
- const a=plan.items||[];if(!a.length)return false;
- const rows=tsfCoordGroups(a.map(it=>it.y),2.4).map(g=>
-   tsfCellText(a.filter(it=>Math.abs(it.y-g.mean)<2.4).sort((x,y)=>x.x-y.x))
-   .replace(/\s+/g,' ').trim()).filter(Boolean);
- const clean=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
- const title=rows.some(t=>/^\s*(?:I\s*[NÑ]DICE|TABLA DE CONTENIDOS)\s*:?\s*$/.test(clean(t)));
- if(!title)return false;
- const items=rows.filter(t=>/^\s*(?:(?:[IVX]{1,6})\.|\d{1,2}(?:\.\d{1,2}){0,2}\.?)\s+[A-Za-zÁÉÍÓÚÜÑ]/i.test(t));
- // Una hoja del índice no debe confundirse con cuerpo que mencione «índice».
- return items.length>=5 && items.length>=rows.length*.38;
+ return tsfScanSourcePdfIndex(plan,pageNumber).found;
 }
 function tsfPdfIndexHints(plan){
- const items=plan.items||[];
- const groups=tsfCoordGroups(items.map(x=>x.y),2.4);
- const found=[];
- for(const g of groups){
-   const line=tsfCellText(items.filter(x=>Math.abs(x.y-g.mean)<2.4).sort((a,b)=>a.x-b.x))
-       .replace(/\s+/g,' ').trim();
-   const m=line.match(/^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s*[-–]?\s+(.+)$/u);
-   if(m && m[2].length<=145 && !found.some(e=>e.number===m[1])){
-      found.push({number:m[1],title:m[2].replace(/[.\s]+$/,'').trim()});
-   }
- }
- return found;
+ return tsfScanSourcePdfIndex(plan,2).hints;
 }
 function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  let items=plan.items;
@@ -2347,10 +2382,18 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      const pageText=plan.items.map(a=>a.str).join(' ');
      const ignoreCover=i===1&&sourceCover;
      if(intactImages.length&&!ignoreCover)warnings.push('Página '+i+': '+intactImages.length+' imagen(es) conservada(s) visualmente sin OCR. Su contenido gráfico no es editable.');
-     const isOriginalIndex=tsfIsSourcePdfIndex(plan,i);
-     if(isOriginalIndex)pdfOriginalIndexHints.push(...tsfPdfIndexHints(plan));
-     const ignoreIndex=!ignoreCover && (isOriginalIndex ||
-       (i<=3&&/ÍNDICE/i.test(pageText)&&(/OBJETIVO/.test(pageText.toUpperCase())&&/ALCANCE/.test(pageText.toUpperCase()))));
+     // TSF v1.27: separar solo las filas del índice original; no eliminar
+     // el resto de la página, aunque contenga contenido operativo real.
+     const sourceToc=!ignoreCover?tsfScanSourcePdfIndex(plan,i):{found:false,plan,hints:[],removed:0};
+     if(sourceToc.found){
+       plan=sourceToc.plan;
+       pdfOriginalIndexHints.push(...sourceToc.hints);
+       warnings.push('Página '+i+': se excluyó el índice original ('+sourceToc.lines+' líneas) para utilizar únicamente el índice TSF.');
+     }
+     const ignoreIndex=false;
+     if(sourceToc.found && plan.items.length===0 && !plan.graphics.images.length){
+       page.cleanup();continue;
+     }
      const extracted=tsfMakeBlocks(plan,ignoreCover,ignoreIndex);
      // Nada se omite por aceptar una casilla genérica. Un fragmento sin asignar
      // se presenta como incidencia para elegir entre original y texto rescatado.
