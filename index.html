@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.16 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.18 · GitHub Pages</footer>
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -317,7 +317,7 @@ const styleDefinition = [
   ['TSFH2', 'Título TSF 2', 22, '242424', true],
   ['TSFH3', 'Título TSF 3', 22, '242424', true]
   ,['TSFMath','Fórmula original editable',18,'242424',false]
-].map(([id,label,size,color,bold])=>`<w:style w:type="paragraph" w:styleId="${id}" w:customStyle="1"><w:name w:val="${esc(label)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="${bold?130:0}" w:after="${bold?65:55}" w:line="235" w:lineRule="auto"/>${bold?'':'<w:jc w:val="both"/>'}${bold?'<w:keepNext/>':''}</w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="${color}"/><w:sz w:val="${size}"/>${bold?'<w:b/>':''}</w:rPr></w:style>`).join('');
+].map(([id,label,size,color,bold])=>`<w:style w:type="paragraph" w:styleId="${id}" w:customStyle="1"><w:name w:val="${esc(label)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="0" w:after="0" w:line="235" w:lineRule="auto"/>${bold?'':'<w:jc w:val="both"/>'}${bold?'<w:keepNext/>':''}</w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="${color}"/><w:sz w:val="${size}"/>${bold?'<w:b/>':''}</w:rPr></w:style>`).join('');
 function normalizeStyles(stylesDoc){
   const root=stylesDoc.documentElement;
   const current=new Map(Array.from(root.getElementsByTagNameNS(NS.w,'style')).map(x=>[W(x,'styleId'),x]));
@@ -430,6 +430,26 @@ function addSectionHeaderFooter(doc,hId,fId){
 function insertBeforeBody(doc,markup){const body=by(doc,'body')[0];if(!body)throw Error('No se encontró el cuerpo del Word.');const ref=body.firstChild;for(const el of xmlFragment(doc,markup))body.insertBefore(el,ref);}
 function setPstyle(doc,paragraph,styleId){const pp=requireChild(doc,paragraph,'pPr');let s=firstNS(pp,'pStyle');if(!s){s=node(doc,'pStyle');pp.insertBefore(s,pp.firstChild);}s.setAttributeNS(NS.w,'w:val',styleId);
   for(const old of Array.from(pp.children))if(['shd','pBdr'].includes(old.localName))pp.removeChild(old);
+}
+// TSF v1.18: SOLO los títulos numéricos de dos niveles (p.ej. 5.1)
+// reciben sangría. Los de tres niveles (p.ej. 5.2.2) y capítulos
+// permanecen al margen. Nunca se añaden espaciados a los títulos.
+function tsfSetHeadingGeometry(doc,par){
+  const ppr=requireChild(doc,par,'pPr');
+  const outline=tsfOutlineNumber(paragraphText(par));
+  const isTwoLevel=!!outline && !outline.roman && outline.level===2;
+  let ind=firstNS(ppr,'ind');
+  if(!ind){ind=node(doc,'ind');ppr.appendChild(ind);}
+  ind.setAttributeNS(NS.w,'w:left',isTwoLevel?'220':'0');
+  ind.setAttributeNS(NS.w,'w:firstLine','0');
+  ind.removeAttributeNS(NS.w,'hanging');
+  let spacing=firstNS(ppr,'spacing');
+  if(!spacing){spacing=node(doc,'spacing');ppr.appendChild(spacing);}
+  spacing.setAttributeNS(NS.w,'w:before','0');
+  spacing.setAttributeNS(NS.w,'w:after','0');
+  let jc=firstNS(ppr,'jc');
+  if(!jc){jc=node(doc,'jc');ppr.appendChild(jc);}
+  jc.setAttributeNS(NS.w,'w:val','left');
 }
 function cleanDirectRunStyle(doc){
   // Solo normalizar el color de los textos generales.
@@ -571,6 +591,7 @@ function headingEntries(doc){
    const end=node(doc,'bookmarkEnd',{id:id});id++;
    par.insertBefore(start,par.firstChild);par.appendChild(end);
    setPstyle(doc,par,level===1?'TSFH1':level===2?'TSFH2':'TSFH3');
+   tsfSetHeadingGeometry(doc,par);
    entries.push({mark,text,level});
    if(entries.length>=110)break;
  }
@@ -725,7 +746,7 @@ function tsfTidyPreviouslyGenerated(doc){
    for(const c of childrenNS(tabs,'tab'))tabs.removeChild(c);
    tabs.appendChild(node(doc,'tab',{val:'left',pos:'460'}));
    let spacing=firstNS(pp,'spacing');if(!spacing){spacing=node(doc,'spacing');pp.appendChild(spacing);}
-   spacing.setAttributeNS(NS.w,'w:after','48');spacing.setAttributeNS(NS.w,'w:line','236');spacing.setAttributeNS(NS.w,'w:lineRule','auto');
+   spacing.setAttributeNS(NS.w,'w:before','0');spacing.setAttributeNS(NS.w,'w:after','0');spacing.setAttributeNS(NS.w,'w:line','236');spacing.setAttributeNS(NS.w,'w:lineRule','auto');
  }
 }
 function normalizeBodyContent(doc){
@@ -741,7 +762,8 @@ function normalizeBodyContent(doc){
     const level=detectHeading(par);
     if(level==='TSFH1'||level==='TSFH2'||level==='TSFH3'){
       setPstyle(doc,par,level);
-      // Heading: left aligned to avoid distorted large gaps.
+      tsfSetHeadingGeometry(doc,par);
+      // El resto de la tipografía y del texto queda intacto.
     }else{
       // Keep original list style, numbering, paragraph spacing and content.
       setJustification(doc,par);
@@ -1353,7 +1375,7 @@ function tsfTableXml(region,data,landscape=false){
         // only inherently numeric cells retain the original centered/right alignment.
         const jc=unit.isBullet?'left':(['center','right'].includes(c.align)?c.align:'left');
         const ind=unit.isBullet?'<w:ind w:left="300" w:hanging="190"/>':'';
-        const format=`<w:pPr>${ind}<w:spacing w:before="0" w:after="${unit.isBullet?55:0}" w:line="230" w:lineRule="auto"/><w:jc w:val="${jc}"/></w:pPr>`;
+        const format=`<w:pPr>${ind}<w:spacing w:before="0" w:after="0" w:line="230" w:lineRule="auto"/><w:jc w:val="${jc}"/></w:pPr>`;
         return `<w:p>${format}${c.source?.length?tsfRichTextXml(t,c.source,{forceSizePt:9}):tsfRichFragment(t,{size:9},{forceBold:false,forceSizePt:9})}</w:p>`;
       }).join('')||'<w:p/>';
      return xml+'</w:tc>';
@@ -1478,12 +1500,13 @@ function tsfBlockHtmlXml(pBlock){
   const isList=pBlock.listKind==='alphabetic'||pBlock.listKind==='bullet';
   // 23 pt desde el margen para el texto; símbolo a 11 pt, tabulador exacto a 23 pt.
   const indentation=isList?'<w:ind w:left="460" w:hanging="240"/><w:tabs><w:tab w:val="left" w:pos="460"/></w:tabs>'
-    : heading ? (outline && outline.level>=3 ? '<w:ind w:left="220" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
+    : (outline && !outline.roman && outline.level>=3) ? '<w:ind w:left="0" w:firstLine="0"/>'
+    : heading ? (outline && !outline.roman && outline.level===2 ? '<w:ind w:left="220" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
     : indent>0 ? `<w:ind w:left="${Math.round(Math.min(indent,65)*20)}"/>` : '';
   const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
   // 9 pt body, 11 pt headings: spacing is measured in twentieths of a point (twips).
-  // Give titled sections breathing room while keeping all text editable.
-  const before=heading?165:0,after=heading?80:(pBlock.bullet?48:62);
+  // TSF v1.18: no introducir espaciado adicional entre párrafos/títulos.
+  const before=0,after=0;
   const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="236" w:lineRule="auto"/><w:widowControl/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
   const textXml=isList?tsfListXml(pBlock):tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz});
   return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${textXml}</w:p>`;
@@ -1717,7 +1740,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
 }
 
 
-/* TSF v1.17 — Continuidad real de títulos y sangrías francesas uniformes. */
+/* TSF v1.18 — Sangría solo para títulos de dos niveles; sin nuevos espaciados. */
 const tsfReviewOverlay=document.getElementById('tsf-review-overlay');
 function tsfReviewPreview(block){
  const target=document.getElementById('tsf-review-preview');target.replaceChildren();
