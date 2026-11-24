@@ -198,8 +198,8 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.24 · GitHub Pages</footer>
-<!-- TSF v1.22: distinción de párrafos numerados X.X.X y subtítulos reales; Arial 10. Sangrías jerárquicas 0/220/440 twips y Arial uniforme en DOCX. -->
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.25 · GitHub Pages</footer>
+<!-- TSF v1.25: restaura jerarquía y formato v1.23, ignora índice del PDF fuente, separa narrativa numerada de títulos y valida texto sin falsos positivos. -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -487,6 +487,7 @@ function tsfSizeLevel3Paragraphs(doc){
    if(!real){
      setPstyle(doc,par,'TSFBody');
      const pr=requireChild(doc,par,'pPr');
+     if(!firstNS(pr,'ind'))pr.appendChild(node(doc,'ind',{left:'440',firstLine:'0'}));
      let sp=firstNS(pr,'spacing');if(!sp){sp=node(doc,'spacing');pr.appendChild(sp);}
      sp.setAttributeNS(NS.w,'w:before','0');sp.setAttributeNS(NS.w,'w:after','0');
      for(const key of ['keepNext','keepLines']){const n=firstNS(pr,key);if(n)pr.removeChild(n);}
@@ -619,7 +620,7 @@ function tsfOutlineNumber(text){
   const level=m[1]?1:(m[2].split('.').length===1?1:Math.min(3,m[2].split('.').length));
   return {level,roman:!!m[1]};
 }
-function headingEntries(doc){
+function headingEntries(doc,newDoc=false,indexHints=[]){
  const body=by(doc,'body')[0],entries=[];
  // En sucesivas estandarizaciones no pueden quedar marcadores TSF anteriores:
  // duplicar _TSF_heading_# hace que PAGEREF apunte a otra página o use 1.
@@ -631,20 +632,43 @@ function headingEntries(doc){
  const pars=childrenNS(body,'p');let id=Math.max(45000,...used)+1;
  for(const par of pars){
    const text=paragraphText(par).replace(/\s+/g,' ').trim();
-   if(!text||text.length>210)continue;
-   const outline=tsfOutlineNumber(text);
+   if(!text)continue;
+   const match=text.match(/^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+([\s\S]+)$/u);
+   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+     .toLowerCase().replace(/[^a-z0-9\s]+/g,' ').trim().replace(/\s+/g,' ');
+   const stems=s=>norm(s).split(' ').filter(w=>w&&!/^(?:de|del|el|la|los|las|y|en|a|para)$/.test(w))
+     .map(w=>w.length>4?w.replace(/s$/,''):w);
+   const matchingHint=newDoc&&match?indexHints.find(h=>{
+     if(h.number!==match[1])return false;
+     const hs=stems(h.title),bs=stems(match[2].slice(0,125));
+     if(!hs.length)return false;
+     return hs.filter(w=>bs.includes(w)).length/hs.length >= (hs.length<=2 ? 1 : .66);
+   }):null;
+   if(text.length>210&&!matchingHint)continue;
+   const outline=tsfOutlineNumber(text) || (matchingHint ? {
+      roman:false,level:Math.min(3,match[1].split('.').length)
+   } : null);
    if(!outline)continue;
-   const currentStyle=detectHeading(par);
-   const explicit=tsfOutlineNumber(text)?.roman || currentStyle!=='TSFBody';
-   if(!explicit || (outline.level>=3 && !tsfIsTrueLevel3DocxHeading(par)))continue;
+   const rawStyle=W(firstNS(firstNS(par,'pPr')||par,'pStyle')||par,'val');
+   const currentStyle=newDoc?rawStyle:detectHeading(par);
+   const explicit=newDoc ? (/^TSFH[123]$/.test(rawStyle)||!!matchingHint) :
+      (tsfOutlineNumber(text)?.roman || currentStyle!=='TSFBody');
+   if(!explicit || (outline.level>=3 && !tsfIsTrueLevel3DocxHeading(par) &&
+      !(newDoc && rawStyle==='TSFH3' && /:\s*$/.test(text))))continue;
    const level=outline.level;
    const mark='_TSF_heading_'+String(entries.length+1);
    const start=node(doc,'bookmarkStart',{id:id,name:mark});
    const end=node(doc,'bookmarkEnd',{id:id});id++;
    const pp=firstNS(par,'pPr');if(pp){par.insertBefore(start,pp.nextSibling);}else{par.insertBefore(start,par.firstChild);}par.appendChild(end);
-   setPstyle(doc,par,level===1?'TSFH1':level===2?'TSFH2':'TSFH3');
-   tsfSetHeadingGeometry(doc,par);
-   entries.push({mark,text,level});
+   // Los epígrafes reconocibles en el índice original pueden señalar un
+   // párrafo numerado completo. Anclarlo, SIN inventarle un subtítulo nuevo.
+   const plainIndexedParagraph=newDoc && !!matchingHint && !/^TSFH[123]$/.test(rawStyle);
+   if(!plainIndexedParagraph){
+     setPstyle(doc,par,level===1?'TSFH1':level===2?'TSFH2':'TSFH3');
+     tsfSetHeadingGeometry(doc,par);
+   }
+   const entryText=plainIndexedParagraph ? match[1]+' '+matchingHint.title : text;
+   entries.push({mark,text:entryText,level});
    if(entries.length>=110)break;
  }
  return entries;
@@ -912,17 +936,18 @@ function tsfBreathingForGeneratedText(doc){
   sp.setAttributeNS(NS.w,'w:line','258');sp.setAttributeNS(NS.w,'w:lineRule','auto');
  }
 }
-function normalizeBodyContent(doc){
+function normalizeBodyContent(doc,newDoc=false){
   // Do NOT automatically accept/reject tracked changes, delete text, or rewrite table cells.
   // The previously requested cover/index normalization is retained, but source body stays intact.
   const frontMatter=removeRecognizedFrontmatter(doc);
-  tsfTidyPreviouslyGenerated(doc);
+  if(!newDoc)tsfTidyPreviouslyGenerated(doc);
   cleanDirectRunStyle(doc);
   const body=by(doc,'body')[0];
   for(const par of by(body,'p')){
     if(inTable(par))continue;
     if(tsfIsNoteParagraph(par))continue; // No alterar formato/justificación de Fuente: ...
-    const level=detectHeading(par);
+    const rawStyle=W(firstNS(firstNS(par,'pPr')||par,'pStyle')||par,'val');
+    const level=newDoc ? (/^TSFH[123]$/.test(rawStyle)?rawStyle:'TSFBody') : detectHeading(par);
     if(level==='TSFH1'||level==='TSFH2'||level==='TSFH3'){
       setPstyle(doc,par,level);
       tsfSetHeadingGeometry(doc,par);
@@ -941,7 +966,7 @@ function normalizeBodyContent(doc){
   }
   tsfMergeContinuedTables(doc);
   tsfRestoreDetachedTableWord(doc);
-  tsfBreathingForGeneratedText(doc);
+  if(!newDoc)tsfBreathingForGeneratedText(doc);
   improveTables(doc);
   tsfAlignExistingObjects(doc);
   tsfSizeLevel3Paragraphs(doc);
@@ -995,9 +1020,9 @@ async function patchPackage(zip,meta,{newDoc=false,bodyXml='' }={}){
   meta.source={...(meta.source||{}),...findSourceMetadata(document)};
   if(!meta.version){const v=(meta.source.version||'').match(/(?:Versi[oó]n\s*)?([0-9]{1,2})(?![0-9])/i);meta.version=v?v[1].padStart(2,'0'):'01';}
   if(!meta.code)meta.code=meta.source.code||'-';
-  const legacyFrontMatter=normalizeBodyContent(document);
+  const legacyFrontMatter=normalizeBodyContent(document,newDoc);
   const protectedBodyTables=JSON.stringify(tableMatrix(document));
-  const entries=headingEntries(document);
+  const entries=headingEntries(document,newDoc,meta.pdfOriginalIndexHints||[]);
   // Portada e índice se crean desde cero, una sola vez.
   if(legacyFrontMatter==='preservado'){
     // La portada previa contiene revisiones/comentarios. Se conserva como primera
@@ -1139,27 +1164,48 @@ function tsfIsTrueLevel3DocxHeading(par){
  }
  return total>=3 && bold/total>=0.65;
 }
+function tsfIsPdfNarrativeNumber(text){
+ const r=String(text||'').trim().replace(/^\d{1,2}(?:\.\d{1,2}){0,3}\.?\s+/, '').trim();
+ if(!r)return false;
+ // Palabras de apertura típicas de instrucciones, obligaciones y definiciones,
+ // no encabezados. Conservar íntegro el párrafo y su numeral.
+ if(/^(?:En caso\b|En todos los casos\b|La Unidad\b|La empresa\b|El [áa]rea\b|El trabajador\b|Los trabajadores\b|Las operaciones\b|El cliente\b|Se deber[aá]\b|Cuando\b|Asimismo\b|Ni los\b|Por la operatividad\b)/i.test(r))return true;
+ if(/:\s+\S/.test(r))return true; // «Usuario Solicitante: Trabajador ...»
+ if(/,\s+(?:son|se|es|son las|cuando|en|por|el|la|los|las)\b/i.test(r))return true;
+ if(/\.\s*-\s+\p{Lu}/u.test(r))return true;
+ return false;
+}
 function headingFromPdf(line,base){
-  const t=line.text.replace(/\s+/g,' ').trim();if(!t||t.length>145)return 'TSFBody';
-  const bold=(line.items||[]).some(x=>/bold|semi.?bold/i.test(x.fontName||''));
-  // Roman chapters are used by TSF manuals; accounting numbers are NOT chapters.
-  const numbered=tsfOutlineNumber(t);
-  if(numbered && numbered.roman && t.length<=118)return 'TSFH1';
-  if(numbered && numbered.level>=3 && !numbered.roman){
-    return tsfIsTrueLevel3Heading(t,line.items) ? 'TSFH3' : 'TSFBody';
-  }
-  if(numbered && (bold || line.size>base*1.13) && t.length<119){
-    return numbered.level===1?'TSFH1':numbered.level===2?'TSFH2':'TSFH3';
-  }
-  // v1.16: los subtítulos jerárquicos de dos niveles no son líneas de cuerpo.
-  // Se excluyen cuentas contables, párrafos largos, y números de operaciones.
-  if(numbered && !numbered.roman && numbered.level===2 &&
-     t.length<=110 && t.split(/\s+/).length<=18 && !/[.!?:;]$/.test(t))return 'TSFH2';
-  // No numerical-title classification from font size alone (accounts often use bold).
-  if(!/^\d{3,}/.test(t) && line.size>base*1.35 && t.length<115)return 'TSFH1';
-  if(!/^\d{3,}/.test(t) && line.size>base*1.17 && t.length<110)return 'TSFH2';
-  if(!/^\d{3,}/.test(t) && t.length<80 && /^[A-ZÁÉÍÓÚÑ0-9\s,()/–-]{5,80}$/.test(t)&&t.split(/\s+/).length<=9)return 'TSFH2';
-  return 'TSFBody';
+ const t=String(line.text||'').replace(/\s+/g,' ').trim();
+ if(!t||t.length>185)return 'TSFBody';
+ const num=tsfOutlineNumber(t);
+ const bold=(line.items||[]).some(it=>/bold|heavy|black|semi.?bold/i.test([it.fontName,it.postscriptName].join(' ')));
+ if(num){
+   if(tsfIsPdfNarrativeNumber(t))return 'TSFBody';
+   if(num.roman)return t.length<=130?'TSFH1':'TSFBody';
+   const content=t.replace(/^\d{1,2}(?:\.\d{1,2}){0,3}\.?\s+/, '').trim();
+   if(num.level===3){
+     // X.X.X solo es título si la descripción es realmente un epígrafe,
+     // no el inicio de una obligación que continúa en líneas posteriores.
+     return tsfIsTrueLevel3Heading(t,line.items) ||
+       (content.length<=75 && /:\s*$/.test(content)) ? 'TSFH3' : 'TSFBody';
+   }
+   const shortTitle=content.length<=90 && content.split(/\s+/).length<=15 &&
+     !/(?:[,;]\s*[^:]+)$/.test(content);
+   if(num.level===1){
+     return (shortTitle || (bold && t.length<=130))?'TSFH1':'TSFBody';
+   }
+   if(num.level===2){
+     // Numerales anómalos como 4.36/4.37 no se convierten en títulos sin negrita.
+     const suffix=Number((t.match(/^\d{1,2}\.(\d{1,2})/)||[])[1]||0);
+     if(suffix>=20 && !bold)return 'TSFBody';
+     return (shortTitle && (bold || content.length<=75 || /:\s*$/.test(content)))?'TSFH2':'TSFBody';
+   }
+ }
+ // Nunca inventar títulos a partir del tamaño de una línea narrativa.
+ if(t.length<80 && /^[A-ZÁÉÍÓÚÑ0-9\s,()/–-]{5,80}$/.test(t)&&t.split(/\s+/).length<=9)
+   return 'TSFH2';
+ return 'TSFBody';
 }
 function inspectPdfStructure(page,items,operatorList){
   const groups=[];
@@ -1683,14 +1729,19 @@ function tsfPdfParagraphs(items,base){
 function tsfJoinWrappedHeadings(paragraphs){
  for(let i=0;i<paragraphs.length-1;i++){
    const a=paragraphs[i],b=paragraphs[i+1];
-   if(!/^TSFH[123]$/.test(a.style||'') || !/^\d{1,2}(?:\.\d{1,2}){1,3}\.?\s/.test(a.text||''))continue;
+   if(!/^TSFH[123]$/.test(a.style||'') || !/^\d{1,2}(?:\.\d{1,2}){0,3}\.?\s/.test(a.text||''))continue;
    if(b.style!=='TSFBody'||b.bullet||b.listKind||/^[•●○◦]/.test(b.text||'')||tsfOutlineNumber(b.text))continue;
    if(!Number.isFinite(a.y)||!Number.isFinite(b.y)||a.y-b.y<4||a.y-b.y>23)continue;
    const chars=(b.source||[]).reduce((n,x)=>n+String(x.str||'').length,0);
    const strong=(b.source||[]).reduce((n,x)=>n+(/bold|heavy|semi.?bold/i.test(x.fontName||'')?String(x.str||'').length:0),0);
    const text=String(b.text||'').trim();
    const likelyContinues=/^(?:de|del|la|las|el|los|en|por|para|y|o|al|a|con|sin|sobre|caja|meses|extremos|riesgo|crediticio|banda)\b/i.test(text);
-   if(!text||text.length>130||!likelyContinues||!chars||strong/chars<0.60)continue;
+   const level=tsfOutlineNumber(a.text);
+   const chapterContinuation=level && level.level===1 && !/[.!?:;]$/.test(a.text.trim()) &&
+     /^(?:de|del|la|las|el|los|por|para|en|y|que|su)\b/i.test(text) &&
+     a.text.trim().split(/\s+/).length>=7;
+   if(!text||text.length>130||!chars||
+      !(chapterContinuation || (likelyContinues && strong/chars>=0.60)))continue;
    a.text=a.text.replace(/\s+$/,'')+' '+text;
    a.source=[...(a.source||[]),...(b.source||[])];
    paragraphs.splice(i+1,1);i--;
@@ -1700,6 +1751,39 @@ function tsfJoinWrappedHeadings(paragraphs){
 // TSF v1.20: Si la última línea de un título termina donde comienza un párrafo
 // regular, usar el cambio de fuente del PDF para separarlos. No reescribir letras.
 // Un ejemplo es "5.3.2 ... a 4 / meses El presente ...".
+// Split the title from its same-line explanation without changing any wording.
+function tsfSplitPdfChapterLead(paragraphs){
+ for(let i=0;i<paragraphs.length;i++){
+  const b=paragraphs[i];if(b.style!=='TSFBody'||!b.text)continue;
+  const m=b.text.match(/^(\d{1,2}\.?\s+[^:]{3,45}:)\s+([\s\S]{18,})$/u);
+  if(!m||tsfOutlineNumber(m[1])?.level!==1)continue;
+  const a={...b,text:m[1],style:'TSFH1',indent:0};
+  const c={...b,text:m[2],style:'TSFBody',indent:0};
+  paragraphs.splice(i,1,a,c);i++;
+ }
+ return paragraphs;
+}
+// Appendix subitems (1., 2., 3.) are paragraphs, not new chapters.
+function tsfFixAnnexNumberedList(paragraphs){
+ let annex=false;
+ for(let i=0;i<paragraphs.length;i++){
+  const b=paragraphs[i],t=String(b.text||'').trim();
+  if(/^Anexo\s+(?:[A-Z]?\d+)/i.test(t)){annex=true;continue;}
+  if(!annex)continue;
+  if(/^\d{1,2}\.\s+/.test(t) && /^TSFH[12]$/.test(b.style||'')){
+    b.style='TSFBody';b.numberedNarrative=true;b.indent=0;
+  }
+  const next=paragraphs[i+1];
+  if(/^\d{1,2}\.\s+/.test(t) && next?.style==='TSFBody' &&
+     !/[:.!?;]$/.test(t) && Number.isFinite(b.y) && Number.isFinite(next.y) &&
+     b.y-next.y>0 && b.y-next.y<=23 &&
+     /^(?:[“"«]|[a-záéíóúñ])/.test(next.text||'')){
+    b.text+=' '+next.text;b.source=[...(b.source||[]),...(next.source||[])];
+    paragraphs.splice(i+1,1);
+  }
+ }
+ return paragraphs;
+}
 function tsfSplitHeadingFromNarrative(paragraphs){
  const boldOf=it=>/bold|heavy|semi.?bold/i.test(it.fontName||it.style?.postscriptName||'');
  for(let i=0;i<paragraphs.length-1;i++){
@@ -1752,11 +1836,13 @@ function tsfPdfParagraphAlign(block){
 function tsfBlockHtmlXml(pBlock){
  if(pBlock.style==='TSFSource')return `<w:p><w:pPr><w:pStyle w:val="TSFSource"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{note:true,forceSizePt:8})}</w:p>`;
  const outline=tsfOutlineNumber(pBlock.text||'');
- const level3=!!outline && !outline.roman && outline.level>=3;
+ const level3=/^\d{1,2}(?:\.\d{1,2}){2,3}\.?\s+/u.test(String(pBlock.text||'').trim());
+ const numberedTwo=/^\d{1,2}\.\d{1,2}\.?\s+/u.test(String(pBlock.text||'').trim())&&!level3;
  const realLevel3=level3 && tsfIsTrueLevel3Heading(pBlock.text,pBlock.source);
- const numberedLabel=!!outline && (outline.roman || outline.level<=2 || realLevel3);
+ // Respetar el estilo estructural decidido en el PDF: el numeral nunca
+ // convierte por sí solo un párrafo explicativo en título.
  const heading=/^TSFH[12]$/.test(pBlock.style||'') ||
-   ((pBlock.style==='TSFH3') && realLevel3) || numberedLabel;
+   (pBlock.style==='TSFH3' && (realLevel3 || /:\s*$/.test(pBlock.text||'')));
  const sz=level3?9:(heading?11:9);
  const indent=Number(pBlock.indent)||0;
 // A common Word list geometry is left=0.25in, hanging=0.14in: the label
@@ -1764,7 +1850,8 @@ function tsfBlockHtmlXml(pBlock){
   const isList=pBlock.listKind==='alphabetic'||pBlock.listKind==='bullet';
   // 23 pt desde el margen para el texto; símbolo a 11 pt, tabulador exacto a 23 pt.
   const indentation=isList?'<w:ind w:left="460" w:hanging="240"/><w:tabs><w:tab w:val="left" w:pos="460"/></w:tabs>'
-    : (outline && !outline.roman && outline.level>=3) ? '<w:ind w:left="440" w:firstLine="0"/>'
+    : level3 ? '<w:ind w:left="440" w:firstLine="0"/>'
+    : numberedTwo && !heading ? '<w:ind w:left="220" w:firstLine="0"/>'
     : heading ? (outline && !outline.roman && outline.level===2 ? '<w:ind w:left="220" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
     : indent>0 ? `<w:ind w:left="${Math.round(Math.min(indent,65)*20)}"/>` : '';
   const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
@@ -1773,7 +1860,7 @@ function tsfBlockHtmlXml(pBlock){
   const before=heading?(outline?.roman?160:(outline?.level===2?120:0)):0;
   const after=level3?0:(heading?(outline?.roman?64:(outline?.level===2?48:36)):(isList?24:36));
   const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="258" w:lineRule="auto"/><w:widowControl/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
-  const textXml=isList?tsfListXml(pBlock):tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz});
+  const textXml=isList?tsfListXml(pBlock):tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz,forceBold:heading});
   return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${textXml}</w:p>`;
 }
 // Remove source footer/header furniture only in the repeated, geometrically validated zone.
@@ -1921,6 +2008,35 @@ function tsfPdfPlan(page,allItems,operatorList,styles={}){
  const regions=tsfRegions(graphics.h,graphics.v,width,height);
  return {items,graphics,regions,width,height,landscape:width>height};
 }
+// Detectar índices originales del PDF con evidencia de varias entradas de capítulo.
+// Al reconstruir se reemplazan por el índice corporativo: NO duplicar sus títulos.
+function tsfIsSourcePdfIndex(plan,pageNumber){
+ if(pageNumber>3)return false;
+ const a=plan.items||[];if(!a.length)return false;
+ const rows=tsfCoordGroups(a.map(it=>it.y),2.4).map(g=>
+   tsfCellText(a.filter(it=>Math.abs(it.y-g.mean)<2.4).sort((x,y)=>x.x-y.x))
+   .replace(/\s+/g,' ').trim()).filter(Boolean);
+ const clean=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+ const title=rows.some(t=>/^\s*(?:I\s*[NÑ]DICE|TABLA DE CONTENIDOS)\s*:?\s*$/.test(clean(t)));
+ if(!title)return false;
+ const items=rows.filter(t=>/^\s*(?:(?:[IVX]{1,6})\.|\d{1,2}(?:\.\d{1,2}){0,2}\.?)\s+[A-Za-zÁÉÍÓÚÜÑ]/i.test(t));
+ // Una hoja del índice no debe confundirse con cuerpo que mencione «índice».
+ return items.length>=5 && items.length>=rows.length*.38;
+}
+function tsfPdfIndexHints(plan){
+ const items=plan.items||[];
+ const groups=tsfCoordGroups(items.map(x=>x.y),2.4);
+ const found=[];
+ for(const g of groups){
+   const line=tsfCellText(items.filter(x=>Math.abs(x.y-g.mean)<2.4).sort((a,b)=>a.x-b.x))
+       .replace(/\s+/g,' ').trim();
+   const m=line.match(/^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s*[-–]?\s+(.+)$/u);
+   if(m && m[2].length<=145 && !found.some(e=>e.number===m[1])){
+      found.push({number:m[1],title:m[2].replace(/[.\s]+$/,'').trim()});
+   }
+ }
+ return found;
+}
 function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  let items=plan.items;
  // La portada y el índice originales se sustituyen por la portada e índice corporativos.
@@ -1986,27 +2102,10 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  // Solo se une si la continuación es próxima, predominantemente negrita y no es una lista.
  tsfJoinWrappedHeadings(paragraphs);
  tsfSplitHeadingFromNarrative(paragraphs);
- // TSF v1.24: un título de capítulo largo al final de página puede
- // venir sin negrita en el PDF. Si es el último párrafo, ocupa varias líneas
- // y es una frase sin cierre oracional, mantenerlo en el índice.
- const terminal=paragraphs.filter(b=>b.style==='TSFBody')
-   .slice().sort((a,b)=>a.y-b.y)[0];
- if(terminal){
-   const number=tsfOutlineNumber(terminal.text);
-   const lines=tsfCoordGroups((terminal.source||[]).map(it=>it.y),2.4);
-   const words=terminal.text.trim().split(/\s+/).length;
-   if(number && !number.roman && number.level===1 &&
-      terminal.y<plan.height*.24 && terminal.text.length<=175 &&
-      lines.length>=2 && words>=8 && words<=35 &&
-      !/[.!?;:]$/.test(terminal.text.trim())){
-     terminal.style='TSFH1';terminal.bullet=false;delete terminal.listKind;terminal.indent=0;
-   }
- }
+ tsfSplitPdfChapterLead(paragraphs);
+ tsfFixAnnexNumberedList(paragraphs);
  const blocks=[...tableBlocks,...imageBlocks,...paragraphs.map(b=>({...b,pageWidth:plan.width,kind:'paragraph'}))].sort((a,b)=>b.y-a.y);
- // TSF v1.24: validar por identidad de fragmentos del PDF y no por igualdad
- // de una sola línea. Los títulos largos pueden ocupar 2+ líneas y formar
- // correctamente un único párrafo Word; en v1.23 esto causaba un falso error.
- // Conservar la detención cuando un título de verdad no quede en un párrafo.
+ // Safety: a numbered section title must remain a Word paragraph, NEVER a table cell.
  const rows=tsfCoordGroups(items.map(a=>a.y),2.4);
  for(const group of rows){
    const groupItems=items.filter(a=>Math.abs(a.y-group.mean)<2.4).sort((a,b)=>a.x-b.x);
@@ -2015,13 +2114,10 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
    if(groupItems.length>3 || groupItems[0]?.x>plan.width*.22)continue;
    const prominent=groupItems.length===1 && groupItems[0].size>=12 && text.length<105;
    if(!prominent)continue;
-   const preserved=blocks.some(block=>{
-     if(block.kind!=='paragraph'||!Array.isArray(block.source))return false;
-     const sourceIds=new Set(block.source.map(it=>it.index));
-     return groupItems.every(it=>sourceIds.has(it.index));
-   });
+   const preserved=blocks.some(block=>block.kind==='paragraph' && Array.isArray(block.source) &&
+      groupItems.every(it=>block.source.some(b=>b.index===it.index)));
    if(!preserved){
-     throw Error('No se pudo recuperar un título numerado como párrafo: '+text+'. Se detuvo la conversión para evitar perder contenido del índice.');
+     throw Error('Un título numerado no se conservó como párrafo: '+text+'. Se detuvo la conversión para proteger el contenido.');
    }
  }
  const covered=new Set([...excluded,...paragraphs.flatMap(b=>b.source.map(a=>a.index))]);
@@ -2165,6 +2261,7 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
  const body=[],figures=[],warnings=[],errors=[],draftPages=new Set(),missingPages=new Set();
  let tables=0,paragraphs=0,totalItems=0,matchedItems=0,landscapeCount=0,reviewNumber=0;
  let previousLandscape=false, sourceCover=false;
+ const pdfOriginalIndexHints=[];
  let lastEmitted=null;
  try{
    for(let i=1;i<=pdf.numPages;i++){
@@ -2200,7 +2297,10 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      }
      const pageText=plan.items.map(a=>a.str).join(' ');
      const ignoreCover=i===1&&sourceCover;
-     const ignoreIndex=i<=3&&/ÍNDICE/i.test(pageText)&&(/OBJETIVO/.test(pageText.toUpperCase())&&/ALCANCE/.test(pageText.toUpperCase()))&&!ignoreCover;
+     const isOriginalIndex=tsfIsSourcePdfIndex(plan,i);
+     if(isOriginalIndex)pdfOriginalIndexHints.push(...tsfPdfIndexHints(plan));
+     const ignoreIndex=!ignoreCover && (isOriginalIndex ||
+       (i<=3&&/ÍNDICE/i.test(pageText)&&(/OBJETIVO/.test(pageText.toUpperCase())&&/ALCANCE/.test(pageText.toUpperCase()))));
      const extracted=tsfMakeBlocks(plan,ignoreCover,ignoreIndex);
      // Nada se omite por aceptar una casilla genérica. Un fragmento sin asignar
      // se presenta como incidencia para elegir entre original y texto rescatado.
@@ -2307,6 +2407,7 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
    if((totalItems===0&&tables===0&&paragraphs===0&&figures.length===0)||(totalItems>0&&matchedItems/totalItems<.995))throw Error('Se detectó pérdida de contenido. El Word no se generó para evitar entregar un documento incorrecto.');
    if(!paragraphs&&!tables&&!figures.length)throw Error('No se recuperó contenido del PDF.');
    const zip=blankDocxZip(body.join(''));
+   meta.pdfOriginalIndexHints=pdfOriginalIndexHints;
    await patchPackage(zip,meta,{newDoc:true});
    if(landscapeCount){
      const d=xmlParse(await zip.file('word/document.xml').async('string'));
