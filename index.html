@@ -74,23 +74,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
 .pdf-draft-opt strong{display:block;font-size:12px;color:#2b2c30}
 .pdf-draft-opt small{display:block;font-size:11px;line-height:1.55;color:#705a1a;margin-top:3px}
 
-/* Verificación OCR: visual original vs. matriz editable, sin notas en Word. */
-.tsf-review-overlay{position:fixed;inset:0;z-index:9999;background:rgba(13,17,23,.82);display:grid;place-items:center;padding:14px}
-.tsf-review-modal{width:min(1480px,98vw);height:min(900px,95vh);background:#fff;border-radius:17px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 90px #0008;color:#14181e}
-.tsf-review-head{padding:16px 22px;border-bottom:1px solid #E0E3E8;display:flex;align-items:center;gap:18px;background:#F9FAFB;flex-wrap:wrap}
-.tsf-review-head strong{font-size:17px}.tsf-review-head small{display:block;color:#64707E;margin-top:4px}
-.tsf-review-body{display:grid;grid-template-columns:46% 54%;gap:0;flex:1;min-height:0}
-.tsf-review-source,.tsf-review-edit{min-height:0;overflow:auto;padding:15px}
-.tsf-review-source{background:#F3F5F6;border-right:1px solid #DCE1E7;text-align:center}
-.tsf-review-source img{width:100%;max-width:680px;object-fit:contain;background:#fff;box-shadow:0 1px 10px #0002}
-.tsf-review-edit table{border-collapse:collapse;min-width:780px;width:100%;font-size:11px}
-.tsf-review-edit td{border:1px solid #CDD3DB;padding:6px;min-width:70px;vertical-align:top;background:#fff;line-height:1.3;outline:0;white-space:pre-wrap;overflow-wrap:anywhere}
-.tsf-review-edit td:focus{outline:2px solid #E4A900;outline-offset:-2px;background:#FFF5D5}
-.tsf-review-edit tr:nth-child(even) td{background:#F6F7F9}
-.tsf-review-actions{padding:12px 18px;background:#fff;border-top:1px solid #DEE2E8;display:flex;align-items:center;justify-content:flex-end;gap:12px}
-.tsf-review-actions button{cursor:pointer;border:1px solid #CDD3DB;border-radius:8px;padding:11px 17px;font-weight:700;background:#fff}
-.tsf-review-actions .tsf-review-confirm{background:#F5BD00;border-color:#F5BD00}
-@media(max-width:900px){.tsf-review-body{grid-template-columns:1fr;grid-template-rows:38% 62%}.tsf-review-source{border-right:0;border-bottom:1px solid #DCE1E7}.tsf-review-modal{height:97vh}}
+/* Las imágenes PDF se conservan en Word sin OCR ni revisión de celdas. */
 </style>
 
 </head>
@@ -123,25 +107,20 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
         <label class="dropzone" id="dropzone" for="source-file">
           <input id="source-file" type="file" accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
           <span class="upload-symbol" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
-          <span class="upload-info"><strong>Arrastra tu archivo o selecciónalo</strong><small>Word (.docx) o PDF con texto seleccionable · Word editable · Máximo 25 MB</small><span id="filename">Ningún archivo seleccionado</span></span>
+          <span class="upload-info"><strong>Arrastra tu archivo o selecciónalo</strong><small>Word (.docx) o PDF · Texto editable, imágenes conservadas · Máximo 25 MB</small><span id="filename">Ningún archivo seleccionado</span></span>
           <span class="choose-file">Seleccionar archivo</span>
         </label>
       </section>
 
 
       <section class="panel" id="pdf-mode-panel" aria-labelledby="pdf-mode-title" hidden>
-        <div class="panel-title"><span class="step">PDF</span><div><h2 id="pdf-mode-title">Reconstrucción de PDF editable</h2><p>Detección de líneas, OCR local, formatos tipográficos y control de fidelidad.</p></div></div>
-        <div class="pdf-hint" role="note"><strong>Solo Word editable:</strong> el motor respeta tamaño y énfasis del texto fuente, reconstruye tablas y puede emplear OCR local para matrices incrustadas como imagen. Cuando el OCR sea incierto, solicita validación antes de aprobar. No se pegan páginas como imágenes.</div>
-        <label class="pdf-draft-opt" for="pdf-ocr" style="background:#F4F8F7;border-color:#BED5CF">
-          <input type="checkbox" id="pdf-ocr" checked>
-          <span><strong>Activar OCR de tablas e imágenes (gratuito, dentro del navegador)</strong>
-          <small>Recupera celdas de matrices rasterizadas y texto de páginas escaneadas. La primera vez descarga Tesseract.js y el modelo de español. La precisión depende de la calidad del PDF; los resultados dudosos requieren revisión.</small></span>
-        </label>
+        <div class="panel-title"><span class="step">PDF</span><div><h2 id="pdf-mode-title">PDF a Word: texto editable e imágenes conservadas</h2><p>Detección de tablas, conservación de imágenes y control de fidelidad.</p></div></div>
+        <div class="pdf-hint" role="note"><strong>Salida Word (.docx):</strong> el motor conserva tamaños y énfasis del texto recuperable, reconstruye tablas con texto digital y mantiene las imágenes originales como figuras individuales. No aplica OCR ni transforma imágenes en tablas. No convierte páginas de texto completo en fotografías.</div>
         <div id="pdf-check" class="pdf-hint" style="margin-top:8px;display:none" aria-live="polite"></div>
         <label class="pdf-draft-opt" for="pdf-draft">
           <input type="checkbox" id="pdf-draft">
-          <span><strong>Permitir descargar un borrador Word editable si faltan tablas o contenido gráfico</strong>
-          <small>Solo para revisión. Se intenta recuperar las tablas incrustadas como imagen por OCR; si no se puede, se indican las páginas afectadas y no se inventa el contenido. La pantalla indicará las páginas afectadas. El Word NO estará completo ni será apto para aprobación. No se agregan anotaciones al archivo.</small></span>
+          <span><strong>Permitir borrador si falta texto o alguna tabla digital</strong>
+          <small>Solo para revisión cuando haya errores de extracción de texto o tablas digitales. Las imágenes del PDF se conservan tal como se ven, como objetos gráficos independientes, sin intentar convertirlas en texto. No se agregan observaciones al Word.</small></span>
         </label>
       </section>
       <section class="panel" aria-labelledby="s2">
@@ -168,7 +147,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </section>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     </form>
-    <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>El contenido de los documentos se procesa en tu navegador; las bibliotecas y modelos OCR se descargan desde sus proveedores, sin enviar el documento a un servicio de conversión. OCR gratuito opcional en el navegador para tablas escaneadas (requiere descargar el modelo OCR). Las tablas se reconstruyen como celdas editables cuando es posible; las páginas escaneadas requieren verificación OCR. Si el PDF presenta componentes que el motor no puede recuperar con seguridad, se muestra el problema y se solicita revisión.</span></div>
+    <div class="privacy-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>El contenido de los documentos se procesa en tu navegador; las bibliotecas y modelos OCR se descargan desde sus proveedores, sin enviar el documento a un servicio de conversión. Las imágenes se conservan visualmente como elementos gráficos separados, sin OCR. El texto digital y las tablas recuperables siguen siendo editables. Si el PDF presenta componentes que el motor no puede recuperar con seguridad, se muestra el problema y se solicita revisión.</span></div>
   </main>
   <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.12 · GitHub Pages</footer>
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
@@ -942,7 +921,10 @@ function tsfPrimitives(ops,width,height){
      const corners=[[0,0],[0,1],[1,0],[1,1]].map(p=>tsfPt(ctm,...p));
      const xs=corners.map(p=>p[0]),ys=corners.map(p=>p[1]);
      const box={left:Math.min(...xs),right:Math.max(...xs),bottom:Math.min(...ys),top:Math.max(...ys)};
-     if(box.right-box.left>width*.25&&box.top-box.bottom>height*.075 && box.bottom>-2 && box.top<height+2)images.push(box);
+     const imW=box.right-box.left, imH=box.top-box.bottom;
+     const inTopFurniture=box.bottom>height-TSF_PDF_HEADER_PT-34 && imH<height*.18;
+     const inBottomFurniture=box.top<TSF_PDF_FOOTER_PT+34 && imH<height*.18;
+     if(imW>width*.09&&imH>height*.035&&imW*imH>width*height*.004 && !inTopFurniture&&!inBottomFurniture && box.bottom>-2 && box.top<height+2)images.push(box);
    }
    if(fn!==o.constructPath)continue;
    const commands=ar[0]||[],coordinates=ar[1]||[];let k=0,first=null,last=null;
@@ -1345,7 +1327,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  const imageBlocks=[];
  for(const box of figures){
    if(ignoreCover||ignoreIndex)break;
-   if(box.right-box.left<plan.width*.27||box.top-box.bottom<plan.height*.10)continue;
+   if(box.right-box.left<plan.width*.09||box.top-box.bottom<plan.height*.035)continue;
    for(const a of items){if(a.y<box.top && a.y>box.bottom && a.x+a.width/2>box.left&&a.x+a.width/2<box.right)excluded.add(a.index);}
    imageBlocks.push({kind:'figure',y:box.top,box});
  }
@@ -1394,7 +1376,7 @@ function tsfPdfMeta(plan,meta){
  if(!meta.version){const ver=(meta.source.version||text.match(/Versi[oó]n\s*:?\s*[0-9]{1,2}/i)?.[0]||'').match(/([0-9]{1,2})(?![0-9])/);meta.version=ver?ver[1].padStart(2,'0'):'01';}
 }
 async function tsfRenderFigure(page,plan,box,n){
- const scale=Math.min(2.2,Math.sqrt(2_750_000/(plan.width*plan.height)));
+ const scale=Math.min(3,Math.sqrt(4_500_000/(plan.width*plan.height)));
  const viewport=page.getViewport({scale});
  const canvas=document.createElement('canvas');canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);
  const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -1406,204 +1388,21 @@ async function tsfRenderFigure(page,plan,box,n){
  if(w<90||h<60)throw Error('No se pudo conservar una figura del PDF como elemento individual.');
  const clip=document.createElement('canvas');clip.width=w;clip.height=h;
  clip.getContext('2d').drawImage(canvas,left,top,w,h,0,0,w,h);
- const blob=await new Promise((resolve,reject)=>clip.toBlob(x=>x?resolve(x):reject(Error('No se pudo conservar la figura del PDF.')),'image/jpeg',.90));
+ const blob=await new Promise((resolve,reject)=>clip.toBlob(x=>x?resolve(x):reject(Error('No se pudo conservar la imagen del PDF.')),'image/png'));
  canvas.width=0;canvas.height=0;clip.width=0;clip.height=0;
  const data=await blob.arrayBuffer();
  const maxCx=plan.landscape?10100000:5550000;
- const cx=Math.min(maxCx,Math.round((box.right-box.left)*12700));
+ const naturalCx=Math.min(maxCx,Math.round((box.right-box.left)*12700));
+ const maxCy=plan.landscape?5350000:8000000;
+ const cx=Math.round(Math.min(naturalCx,maxCy*w/h));
  const cy=Math.round(cx*h/w);
  const id='rIdTSFFigure'+n;
- return {data,id,name:'tsf_diagrama_'+n+'.jpg',xml:`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="95" w:after="95"/></w:pPr>${imageMarkup(id,{cx,cy,id:4300+n})}</w:p>`};
+ const leftMargin=Math.max(0,box.left-36),rightMargin=Math.max(0,plan.width-36-box.right);
+ const align=Math.abs(leftMargin-rightMargin)<plan.width*.06?'center':leftMargin<rightMargin?'left':'right';
+ return {data,id,name:'tsf_imagen_original_'+n+'.png',xml:`<w:p><w:pPr><w:jc w:val="${align}"/><w:spacing w:before="55" w:after="55"/></w:pPr>${imageMarkup(id,{cx,cy,id:4300+n})}</w:p>`};
 }
 
-/* OCR local – solo se ejecuta cuando el PDF contiene una matriz rasterizada. */
-let tsfOcrWorker=null;
-async function tsfEnsureOcr(onProgress){
- if(tsfOcrWorker)return tsfOcrWorker;
- if(!window.Tesseract){
-   const URLs=['https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js',
-     'https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js'];
-   let ok=false;
-   for(const url of URLs){try{await new Promise((resolve,reject)=>{const z=document.createElement('script');z.src=url;z.onload=resolve;z.onerror=reject;document.head.appendChild(z);});if(window.Tesseract){ok=true;break;}}catch(_){} }
-   if(!ok)throw Error('No se pudo cargar Tesseract.js. Comprueba la conexión a Internet para descargar el motor OCR gratuito.');
- }
- onProgress('Cargando el modelo OCR de español en el navegador (solo en la primera ejecución)…');
- tsfOcrWorker=await window.Tesseract.createWorker('spa',1,{logger:m=>{if(m.status==='recognizing text')onProgress('Reconociendo tabla OCR: '+Math.round((m.progress||0)*100)+'%');}});
- return tsfOcrWorker;
-}
-function tsfImageTableGrid(canvas){
- const w=canvas.width,h=canvas.height;
- const rgba=canvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
- const dark=(x,y)=>{const o=(y*w+x)*4;return rgba[o]<112&&rgba[o+1]<112&&rgba[o+2]<112;};
- const rows=[];
- for(let y=2;y<h-2;y++){
-   let from=0,start=-1,max=0,best=0;
-   for(let x=0;x<w;x++){
-     if(dark(x,y)){if(start<0)start=x;}
-     else if(start>=0){if(x-start>max){max=x-start;best=start;}start=-1;}
-   }
-   if(start>=0&&w-start>max){max=w-start;best=start;}
-   if(max>=w*.58)rows.push({y,left:best,right:best+max});
- }
- const bands=[];
- for(const r of rows){const p=bands.at(-1);if(p&&r.y-p.at(-1).y<=2)p.push(r);else bands.push([r]);}
- const hh=bands.map(b=>({y:Math.round(b.reduce((a,r)=>a+r.y,0)/b.length),left:Math.round(b.reduce((a,r)=>a+r.left,0)/b.length),right:Math.round(b.reduce((a,r)=>a+r.right,0)/b.length)}));
- const grouped=new Map();
- for(const line of hh){const key=Math.round(line.left/9);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(line);}
- const dominant=[...grouped.values()].sort((a,b)=>b.length-a.length)[0]||[];
- if(dominant.length<5)return null;
- const left=Math.min(...dominant.map(x=>x.left)),right=Math.max(...dominant.map(x=>x.right));
- let ys=hh.filter(z=>z.left<=left+22&&z.right>=right-Math.max(24,(right-left)*.14)).map(z=>z.y).sort((a,b)=>a-b);
- ys=tsfCoordGroups(ys,3).map(g=>Math.round(g.mean));
- if(ys.length<5)return null;
- const top=ys[0],bottom=ys.at(-1);
- const xScores=[];
- for(let x=Math.max(1,left-2);x<Math.min(w-1,right+2);x++){
-   let c=0,start=0;
-   for(let y=top;y<=bottom;y++){
-     if(dark(x,y))start++;
-     else{if(start>=Math.max(5,Math.round(h*.004)))c+=start;start=0;}
-   }
-   if(start>=5)c+=start;
-   if(c>(bottom-top)*.12)xScores.push({x,score:c});
- }
- const xgroups=[];
- for(const e of xScores){const p=xgroups.at(-1);if(p&&e.x-p.at(-1).x<=3)p.push(e);else xgroups.push([e]);}
- const xs=xgroups.map(g=>Math.round(g.reduce((a,v)=>a+v.x*v.score,0)/g.reduce((a,v)=>a+v.score,0))).sort((a,b)=>a-b);
- if(xs[0]>left+8)xs.unshift(left);
- if(xs.at(-1)<right-8)xs.push(right);
- if(xs.length<3||xs.length>18)return null;
- return {xs,ys,top,bottom,left,right};
-}
-function tsfOcrWords(blocks){
- const words=[];
- const seen=new WeakSet();
- function walk(x){if(!x||typeof x!=='object'||seen.has(x))return;seen.add(x);
-   if(Array.isArray(x)){x.forEach(walk);return;}
-   if(x.bbox&&x.text&&!(x.words||x.lines||x.paragraphs||x.blocks)){
-      const b=x.bbox;
-      if(Number.isFinite(b.x0)&&Number.isFinite(b.y0)&&Number.isFinite(b.x1)&&Number.isFinite(b.y1))words.push({text:String(x.text).trim(),x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2,width:b.x1-b.x0,confidence:Number(x.confidence??x.conf??0)});
-   }
-   for(const k of ['blocks','paragraphs','lines','words'])if(x[k])walk(x[k]);
- }
- walk(blocks);return words.filter(w=>w.text);
-}
-function tsfOcrJoin(words){
- if(!words.length)return '';
- const groups=tsfCoordGroups(words.map(x=>x.y),8).map(g=>({y:g.mean,words:[]}));
- for(const word of words){const nearest=groups.reduce((a,b)=>Math.abs(a.y-word.y)<Math.abs(b.y-word.y)?a:b);nearest.words.push(word);}
- return groups.sort((a,b)=>a.y-b.y).map(g=>g.words.sort((a,b)=>a.x-b.x).map(w=>w.text).join(' ')).join(' ').replace(/\s+/g,' ').trim();
-}
-
-function tsfRasterShade(canvas,left,right,top,bottom){
- const ctx=canvas.getContext('2d',{willReadFrequently:true});
- const ys=[.37,.55,.73],xs=[.46,.67,.84];let samples=[];
- for(const yr of ys)for(const xr of xs){
-   const x=Math.max(0,Math.min(canvas.width-1,Math.round(left+(right-left)*xr)));
-   const y=Math.max(0,Math.min(canvas.height-1,Math.round(top+(bottom-top)*yr)));
-   const d=ctx.getImageData(x,y,1,1).data;
-   // Don't consider very dark glyphs as the cell's background.
-   if((d[0]+d[1]+d[2])/3>70)samples.push([d[0],d[1],d[2]]);
- }
- if(samples.length<3)return 'FFFFFF';
- samples.sort((a,b)=>(a[0]+a[1]+a[2])-(b[0]+b[1]+b[2]));
- const d=samples[Math.floor(samples.length/2)],avg=(d[0]+d[1]+d[2])/3;
- if(d[2]>d[0]+17&&d[1]>d[0]+16)return 'FFF3D1'; // Celeste -> amarillo suave TOTAL
- if(avg<222&&Math.max(...d)-Math.min(...d)<20)return 'F5BD00'; // Gris oscuro -> amarillo TOTAL
- return 'FFFFFF';
-}
-
-
-function tsfEscHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-async function tsfReviewRasterTable(pageNum,canvas,rows,title){
- return new Promise((resolve,reject)=>{
-   const overlay=document.createElement('div');overlay.className='tsf-review-overlay';
-   overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
-   overlay.setAttribute('aria-label','Verificar OCR de la página '+pageNum);
-   const screenshot=canvas.toDataURL('image/jpeg',.83);
-   overlay.innerHTML=`<div class="tsf-review-modal">
-     <div class="tsf-review-head"><div><strong>Verificar tabla OCR · página ${pageNum}</strong>
-       <small>Izquierda: imagen original. Derecha: celdas editables recuperadas. Corrige los errores antes de generar el Word.</small></div></div>
-     <div class="tsf-review-body">
-       <div class="tsf-review-source"><img src="${screenshot}" alt="Tabla original del PDF, página ${pageNum}"></div>
-       <div class="tsf-review-edit"><label style="display:block;font-size:12px;margin-bottom:12px">Título original (si aparece en la imagen): <input class="tsf-review-title" type="text" style="width:100%;border:1px solid #CED4DC;border-radius:6px;padding:9px" value="${tsfEscHtml(title)}"></label>
-       <table aria-label="Celdas recuperadas por OCR"><tbody>${rows.map((row,i)=>`<tr data-r="${i}">${row.map((c,j)=>`<td contenteditable="true" spellcheck="false" data-c="${j}" aria-label="Fila ${i+1} columna ${j+1}">${tsfEscHtml(c.text)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-     </div><div class="tsf-review-actions"><small style="margin-right:auto;color:#66717e">Los cambios solo se aplican al Word de salida; nunca al PDF original.</small><button type="button" class="tsf-review-cancel">Cancelar</button><button type="button" class="tsf-review-confirm">Confirmar tabla y continuar</button></div></div>`;
-   const previous=document.activeElement;
-   document.body.appendChild(overlay);
-   overlay.querySelector('.tsf-review-confirm').focus();
-   const done=()=>{overlay.remove();if(previous?.focus)previous.focus();};
-   overlay.querySelector('.tsf-review-cancel').onclick=()=>{done();reject(Error('Conversión cancelada durante la revisión de OCR. No se descargó un documento incorrecto.'));};
-   overlay.querySelector('.tsf-review-confirm').onclick=()=>{
-     const trs=[...overlay.querySelectorAll('.tsf-review-edit tbody tr')];
-     for(const tr of trs){const n=Number(tr.dataset.r);const tds=[...tr.querySelectorAll('td')];
-       for(const td of tds)rows[n][Number(td.dataset.c)].text=td.innerText.replace(/\u00a0/g,' ').trim();
-     }
-     const checkedTitle=overlay.querySelector('.tsf-review-title').value.trim();
-     done();resolve({rows,title:checkedTitle});
-   };
- });
-}
-
-async function tsfRasterTable(page,plan,box,pageNum,onProgress){
- const scale=3.0, vp=page.getViewport({scale});
- const area=(box.right-box.left)*(box.top-box.bottom);
- if(area<8000)return {error:'Imagen demasiado pequeña para un OCR fiable'};
- const canvas=document.createElement('canvas');canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);
- const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
- await page.render({canvasContext:ctx,viewport:vp}).promise;
- const x=Math.max(0,Math.floor((box.left-2)*scale)), y=Math.max(0,Math.floor((plan.height-box.top-2)*scale));
- const cw=Math.min(canvas.width-x,Math.ceil((box.right-box.left+4)*scale)),ch=Math.min(canvas.height-y,Math.ceil((box.top-box.bottom+4)*scale));
- const crop=document.createElement('canvas');crop.width=cw;crop.height=ch;
- crop.getContext('2d').drawImage(canvas,x,y,cw,ch,0,0,cw,ch);
- canvas.width=0;canvas.height=0;
- const grid=tsfImageTableGrid(crop);
- const worker=await tsfEnsureOcr(onProgress);
- onProgress('Página '+pageNum+': reconstruyendo '+(grid.ys.length-1)+' filas y '+(grid.xs.length-1)+' columnas con OCR local…');
- const result=await worker.recognize(crop,{}, {blocks:true});
- const words=tsfOcrWords(result.data.blocks||[]);
- if(!grid){
-   if(words.length<6){crop.width=0;crop.height=0;return {error:'La imagen no contiene una cuadrícula ni texto OCR suficiente'};}
-   const lines=tsfCoordGroups(words.map(w=>w.y),9).map(g=>({y:g.mean,words:[]}));
-   for(const w of words){const group=lines.reduce((a,b)=>Math.abs(w.y-a.y)<Math.abs(w.y-b.y)?a:b);group.words.push(w);}
-   const data=lines.sort((a,b)=>a.y-b.y).map(g=>[{text:tsfOcrJoin(g.words)}]).filter(row=>row[0].text.length);
-   if(!data.length){crop.width=0;crop.height=0;return {error:'No se recuperaron párrafos de la página escaneada'};}
-   const avg=Math.round(words.reduce((a,w)=>a+w.confidence,0)/words.length);
-   await tsfReviewRasterTable(pageNum,crop,data,'');
-   crop.width=0;crop.height=0;
-   const xml=data.map(row=>p(row[0].text,'TSFBody')).join('');
-   return {xml,kind:'rasterText',title:'',y:box.top,rows:data.length,cols:1,average:avg,wordCount:words.length,uncertain:true};
- }
- if(words.length<9){crop.width=0;crop.height=0;return {error:'OCR insuficiente: solo '+words.length+' palabras reconocidas'};}
- const data=[],quality=[];
- for(let r=0;r<grid.ys.length-1;r++){
-   const top=grid.ys[r],bottom=grid.ys[r+1];
-   if(bottom-top<5)continue;
-   const cells=[];
-   for(let c=0;c<grid.xs.length-1;c++){
-     const left=grid.xs[c],right=grid.xs[c+1];
-     const found=words.filter(w=>w.x>=left-1&&w.x<right+1&&w.y>=top-1&&w.y<bottom+1);
-     const text=tsfOcrJoin(found);
-     if(found.length)quality.push(...found.map(w=>w.confidence));
-     const inferred=found.map(w=>({x:w.x-w.width/2,width:w.width,y:w.y}));
-     cells.push({text,span:1,source:[],align:inferred.length?tsfCellAlign(inferred,left,right):'left',shade:tsfRasterShade(crop,left,right,top,bottom)});
-   }
-   data.push(cells);
- }
- const average=quality.length?quality.reduce((a,b)=>a+b,0)/quality.length:0;
- const good=data.flat().filter(c=>c.text).length;
- const titleWords=words.filter(w=>w.y<grid.top*.52&&w.y>=0);
- let title=tsfOcrJoin(titleWords);
- if(good<6||data.length<4){crop.width=0;crop.height=0;return {error:'La matriz rasterizada no tiene suficientes celdas legibles'};}
- const review=await tsfReviewRasterTable(pageNum,crop,data,title);
- title=review.title;
- crop.width=0;crop.height=0;
- const xs=grid.xs.map(x=>box.left-2+x/scale);
- const xml=tsfTableXml({cols:xs,hasHeader:false},{allRows:data},plan.landscape);
- return {xml,title,y:box.top,rows:data.length,cols:grid.xs.length-1,average:Math.round(average),wordCount:words.length,
-   uncertain:average<78 || good<Math.max(6,data.length*.55)};
-}
-
+/* TSF v1.12.1: las imágenes se insertan sin OCR; los bloques nativos se editan. */
 function tsfUneditableImageEvidence(plan){
  const suspects=[];
  for(const b of plan.graphics.images){
@@ -1621,7 +1420,7 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
  let pdf;
  try{pdf=await task.promise;}catch(e){throw Error('No se pudo abrir el PDF: '+e.message);}
  if(pdf.numPages>TSF_PDF_LIMIT_PAGES){await pdf.destroy();throw Error('Este PDF tiene '+pdf.numPages+' páginas; el modo público admite hasta '+TSF_PDF_LIMIT_PAGES+'. Divide el documento y comprueba el resultado.');}
- const body=[],figures=[],warnings=[],errors=[],draftPages=new Set(),ocrPages=new Set(),missingPages=new Set();
+ const body=[],figures=[],warnings=[],errors=[],draftPages=new Set(),missingPages=new Set();
  let tables=0,paragraphs=0,totalItems=0,matchedItems=0,landscapeCount=0;
  let previousLandscape=false, sourceCover=false;
  let lastEmitted=null;
@@ -1633,34 +1432,10 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      const operatorList=await page.getOperatorList();
      let plan=tsfPdfPlan(page,txt.items,operatorList,txt.styles||{});
      const originalContent=plan.items.length;
-     const uneditable=tsfUneditableImageEvidence(plan);
-     const rasterBlocks=[];
-     if(uneditable.length){
-       for(const suspect of uneditable){
-         let result={error:'OCR desactivado'};
-         if(options.useOcr!==false){
-           try{result=await tsfRasterTable(page,plan,suspect.box,i,onProgress);}
-           catch(ocrError){if(/cancelada durante la revisión/i.test(ocrError?.message||''))throw ocrError;result={error:ocrError?.message||String(ocrError)};}
-         }
-         if(result.xml){
-           rasterBlocks.push({kind:result.kind||'rasterTable',y:result.y,xml:result.xml,box:suspect.box});
-           if(result.kind==='rasterText')paragraphs+=result.rows;else tables++;
-           warnings.push('Página '+i+': '+(result.kind==='rasterText'?'página escaneada convertida a texto editable ('+result.rows+' líneas)':'matriz rasterizada reconstruida como tabla editable ('+result.rows+' filas × '+result.cols+' columnas)')+'; confianza OCR aproximada '+result.average+'%. Comparar con el PDF original.');
-           // OCR is probabilistic even with a high confidence score. Never claim
-           // complete fidelity for text reconstructed from a bitmap.
-           draftPages.add(i);ocrPages.add(i);
-           warnings.push('Página '+i+': REVISIÓN OBLIGATORIA de todas las celdas OCR frente al PDF original.');
-           if(result.average<55 && !allowDraft){
-             errors.push('Página '+i+': OCR de confianza muy baja ('+result.average+'%). Activa borrador para recuperar el texto provisional.');
-           }
-           if(result.title&&/[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}/.test(result.title))rasterBlocks.push({kind:'rasterTitle',y:result.y+4,text:result.title});
-         }else{
-           const msg='Página '+i+': imagen con tabla sin recuperar. '+result.error+'.';
-           if(allowDraft){warnings.push(msg);draftPages.add(i);missingPages.add(i);}
-           else errors.push(msg);
-         }
-       }
-     }
+     const intactImages=tsfUneditableImageEvidence(plan);
+     // Las imágenes (incluidas matrices rasterizadas) se conservan, no se interpretan.
+     // La extracción de texto/tablas nativos continúa como hasta ahora.
+     if(intactImages.length)warnings.push('Página '+i+': '+intactImages.length+' imagen(es) conservada(s) visualmente sin OCR. Su contenido gráfico no es editable.');
      plan=tsfRemoveSourceFurniture(plan);
      if(plan.footerRemoved && i===2)warnings.push('Se detectaron y excluyeron pies de página antiguos repetidos; se usa únicamente el pie TSF.');
      const bareCover=tsfOriginalCover(plan,i);
@@ -1673,23 +1448,15 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      const ignoreCover=i===1&&sourceCover;
      const ignoreIndex=i<=3&&/ÍNDICE/i.test(pageText)&&(/OBJETIVO/.test(pageText.toUpperCase())&&/ALCANCE/.test(pageText.toUpperCase()))&&!ignoreCover;
      const extracted=tsfMakeBlocks(plan,ignoreCover,ignoreIndex);
-     if(rasterBlocks.length){
-       // Replace ONLY the raster figure, not the entire PDF page. Native text stays editable.
-       extracted.blocks=extracted.blocks.filter(b=>!(b.kind==='figure'&&uneditable.some(s=>{
-         const q=s.box;return Math.max(0,Math.min(q.top,b.box.top)-Math.max(q.bottom,b.box.bottom))>Math.min(q.top-q.bottom,b.box.top-b.box.bottom)*.45;
-       })));
-       extracted.blocks.push(...rasterBlocks);
-       extracted.blocks.sort((a,b)=>b.y-a.y);
-     }
      if(extracted.missing.length){
        const msg='Página '+i+': '+extracted.missing.length+' fragmentos de texto no asignados.';
        if(allowDraft){warnings.push(msg+' Contenido incompleto.');draftPages.add(i);missingPages.add(i);}else errors.push(msg);
      }
-     if(!ignoreCover&&!ignoreIndex&&plan.items.length<3&&!rasterBlocks.length){
-       const msg='Página '+i+': no se encontró texto seleccionable. Los PDF escaneados requieren OCR.';
+     if(!ignoreCover&&!ignoreIndex&&plan.items.length<3&&extracted.figureCount===0){
+       const msg='Página '+i+': no se encontró texto seleccionable ni imagen preservable.';
        if(allowDraft){warnings.push(msg+' Contenido no recuperado.');draftPages.add(i);missingPages.add(i);}else errors.push(msg);
      }
-     if(!ignoreCover&&!ignoreIndex&&plan.regions.length>0&&extracted.tableCount===0){
+     if(!ignoreCover&&!ignoreIndex&&plan.regions.length>0&&extracted.tableCount===0&&extracted.figureCount===0){
        const msg='Página '+i+': se detectó una cuadrícula de tabla, pero no fue posible reconstruir sus celdas con suficiente seguridad.';
        if(allowDraft){warnings.push(msg+' Revisar contra el PDF.');draftPages.add(i);missingPages.add(i);}else errors.push(msg);
      }
@@ -1706,8 +1473,6 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
        warnings.push('Página 1: portada reemplazada; se conservó el contenido operativo que aparecía después de la carátula.');
      }
      for(const b of extracted.blocks){
-       if(b.kind==='rasterTitle'){body.push(p(b.text,'TSFBody'));paragraphs++;lastEmitted={kind:'paragraph',text:b.text,style:'TSFBody',page:i,landscape:plan.landscape};continue;}
-       if(b.kind==='rasterTable'||b.kind==='rasterText'){body.push(b.xml);lastEmitted={kind:b.kind,page:i};continue;}
        if(b.kind==='table'){
          // A borderless accounting table may continue on the following PDF page.
          // Combine only consecutive tables with the same inferred columns.
@@ -1742,15 +1507,6 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
          }
        }
        else if(b.kind==='figure'){
-         const overlapsRisk=uneditable.some(r=>{
-           const v=r.box;
-           const x=Math.max(0,Math.min(v.right,b.box.right)-Math.max(v.left,b.box.left));
-           const y=Math.max(0,Math.min(v.top,b.box.top)-Math.max(v.bottom,b.box.bottom));
-           const area=Math.max(1,(b.box.right-b.box.left)*(b.box.top-b.box.bottom));
-           return x*y/area>.5;
-         });
-         // Ninguna tabla rasterizada pasa al borrador disfrazada de editable.
-         if(allowDraft&&overlapsRisk){draftPages.add(i);lastEmitted={kind:'omitted',page:i};continue;}
          const item=await tsfRenderFigure(page,plan,b.box,figures.length+1);
          figures.push(item);body.push(item.xml);lastEmitted={kind:'figure',page:i};
        }
@@ -1764,8 +1520,8 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
    if(errors.length){
      throw Error('Conversión detenida para evitar un Word incompleto: '+errors.slice(0,6).join(' ')+' Si tienes el DOCX original, úsalo para conservar las tablas.');
    }
-   if((totalItems===0&&tables===0&&paragraphs===0)||(totalItems>0&&matchedItems/totalItems<.995))throw Error('Se detectó pérdida de contenido. El Word no se generó para evitar entregar un documento incorrecto.');
-   if(!paragraphs&&!tables)throw Error('No se recuperó suficiente contenido editable del PDF.');
+   if((totalItems===0&&tables===0&&paragraphs===0&&figures.length===0)||(totalItems>0&&matchedItems/totalItems<.995))throw Error('Se detectó pérdida de contenido. El Word no se generó para evitar entregar un documento incorrecto.');
+   if(!paragraphs&&!tables&&!figures.length)throw Error('No se recuperó contenido del PDF.');
    const zip=blankDocxZip(body.join(''));
    await patchPackage(zip,meta,{newDoc:true});
    if(landscapeCount){
@@ -1781,8 +1537,7 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
      const relsPath='word/_rels/document.xml.rels';
      const rel=xmlParse(await zip.file(relsPath).async('string'));
      const ct=xmlParse(await zip.file('[Content_Types].xml').async('string'));
-     const hasJpg=[...ct.documentElement.children].some(x=>x.getAttribute('Extension')==='jpg');
-     if(!hasJpg){const e=ct.createElementNS(NS.ct,'Default');e.setAttribute('Extension','jpg');e.setAttribute('ContentType','image/jpeg');ct.documentElement.appendChild(e);}
+     addPngDefault(ct,ct.documentElement);
      for(const item of figures){zip.file('word/media/'+item.name,item.data);addRel(rel,rel.documentElement,item.id,'image','media/'+item.name);}
      zip.file(relsPath,xmlSave(rel));zip.file('[Content_Types].xml',xmlSave(ct));
    }
@@ -1792,11 +1547,10 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
    const check=xmlParse(await test.file('word/document.xml').async('string'));
    const countTables=by(check,'tbl').length;
    if(countTables<tables)throw Error('Faltan tablas editables en el Word resultante.');
-   const info='Se recuperaron '+tables+' tablas, '+paragraphs+' párrafos y '+figures.length+' figuras individuales; '+landscapeCount+' página(s) horizontales. La geometría de PDF no asegura una reproducción exacta de todas las celdas fusionadas: revisa el Word antes de aprobarlo.';
-   if(ocrPages.size)warnings.unshift('REVISIÓN OCR OBLIGATORIA: página(s) '+[...ocrPages].sort((a,b)=>a-b).join(', ')+'. Las matrices rasterizadas o páginas escaneadas se convirtieron en elementos editables, pero el OCR puede tener errores de lectura.');
+   const info='Se recuperaron '+tables+' tablas, '+paragraphs+' párrafos y se conservaron '+figures.length+' imágenes independientes; '+landscapeCount+' página(s) horizontales. La geometría de PDF no asegura una reproducción exacta de todas las celdas fusionadas: revisa el Word antes de aprobarlo.';
    if(missingPages.size)warnings.unshift('BORRADOR INCOMPLETO: páginas con contenido pendiente '+[...missingPages].sort((a,b)=>a-b).join(', ')+'.');
    warnings.unshift(info);
-   return {out,warnings,stats:{tables,paragraphs,figures:figures.length,landscape:landscapeCount,incomplete:draftPages.size>0,affectedPages:[...draftPages].sort((a,b)=>a-b),ocrPages:[...ocrPages].sort((a,b)=>a-b),missingPages:[...missingPages].sort((a,b)=>a-b)}};
+   return {out,warnings,stats:{tables,paragraphs,figures:figures.length,landscape:landscapeCount,incomplete:draftPages.size>0,affectedPages:[...draftPages].sort((a,b)=>a-b),missingPages:[...missingPages].sort((a,b)=>a-b)}};
  }finally{try{await pdf.destroy();}catch(_){} }
 }
 
@@ -1830,11 +1584,11 @@ form.addEventListener('submit',async e=>{
     if(ext==='pdf')showNotice('Analizando PDF. Los documentos con tablas, imágenes o columnas deben revisarse antes de aprobarse.','warning');
     const bytes=await f.arrayBuffer();
     const result=ext==='pdf'
-      ?await pdfToDocx(bytes,meta,msg=>showNotice(msg),{allowDraft:document.getElementById('pdf-draft').checked,useOcr:document.getElementById('pdf-ocr').checked})
+      ?await pdfToDocx(bytes,meta,msg=>showNotice(msg),{allowDraft:document.getElementById('pdf-draft').checked})
       :await docxToDocx(bytes,meta);
-    const outName=result.stats?.missingPages?.length?`${cleanFileName(meta.title)}_BORRADOR_INCOMPLETO_TSF.docx`:result.stats?.ocrPages?.length?`${cleanFileName(meta.title)}_REVISION_OCR_TSF.docx`:`${cleanFileName(meta.title)}_Estandarizado_TSF.docx`;
+    const outName=result.stats?.missingPages?.length?`${cleanFileName(meta.title)}_BORRADOR_INCOMPLETO_TSF.docx`:`${cleanFileName(meta.title)}_Estandarizado_TSF.docx`;
     saveDoc(result.out,outName);
-    if(result.stats?.incomplete)showNotice('WORD DE REVISIÓN DESCARGADO. Comprueba las celdas OCR y las páginas indicadas antes de aprobar. Páginas que requieren recuperar datos: '+result.stats.affectedPages.join(', ')+'. '+result.warnings.join(' '),'warning');
+    if(result.stats?.incomplete)showNotice('WORD DE REVISIÓN DESCARGADO. Comprueba las páginas con texto o tablas no recuperados antes de aprobar. Páginas que requieren recuperar datos: '+result.stats.affectedPages.join(', ')+'. '+result.warnings.join(' '),'warning');
     else if(result.warnings.length)showNotice('Word generado y descargado. Revisión recomendada: '+result.warnings.join(' '),'warning');
     else showNotice('Word generado y descargado. Revisa el diseño y los cambios de página antes de aprobarlo.');
   }catch(err){console.error('Error de estandarización:',err);showNotice(err.message||'No fue posible generar el documento.','error');}
