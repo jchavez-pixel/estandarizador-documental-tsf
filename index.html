@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.23 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.24 · GitHub Pages</footer>
 <!-- TSF v1.22: distinción de párrafos numerados X.X.X y subtítulos reales; Arial 10. Sangrías jerárquicas 0/220/440 twips y Arial uniforme en DOCX. -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -1986,8 +1986,27 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  // Solo se une si la continuación es próxima, predominantemente negrita y no es una lista.
  tsfJoinWrappedHeadings(paragraphs);
  tsfSplitHeadingFromNarrative(paragraphs);
+ // TSF v1.24: un título de capítulo largo al final de página puede
+ // venir sin negrita en el PDF. Si es el último párrafo, ocupa varias líneas
+ // y es una frase sin cierre oracional, mantenerlo en el índice.
+ const terminal=paragraphs.filter(b=>b.style==='TSFBody')
+   .slice().sort((a,b)=>a.y-b.y)[0];
+ if(terminal){
+   const number=tsfOutlineNumber(terminal.text);
+   const lines=tsfCoordGroups((terminal.source||[]).map(it=>it.y),2.4);
+   const words=terminal.text.trim().split(/\s+/).length;
+   if(number && !number.roman && number.level===1 &&
+      terminal.y<plan.height*.24 && terminal.text.length<=175 &&
+      lines.length>=2 && words>=8 && words<=35 &&
+      !/[.!?;:]$/.test(terminal.text.trim())){
+     terminal.style='TSFH1';terminal.bullet=false;delete terminal.listKind;terminal.indent=0;
+   }
+ }
  const blocks=[...tableBlocks,...imageBlocks,...paragraphs.map(b=>({...b,pageWidth:plan.width,kind:'paragraph'}))].sort((a,b)=>b.y-a.y);
- // Safety: a numbered section title must remain a Word paragraph, NEVER a table cell.
+ // TSF v1.24: validar por identidad de fragmentos del PDF y no por igualdad
+ // de una sola línea. Los títulos largos pueden ocupar 2+ líneas y formar
+ // correctamente un único párrafo Word; en v1.23 esto causaba un falso error.
+ // Conservar la detención cuando un título de verdad no quede en un párrafo.
  const rows=tsfCoordGroups(items.map(a=>a.y),2.4);
  for(const group of rows){
    const groupItems=items.filter(a=>Math.abs(a.y-group.mean)<2.4).sort((a,b)=>a.x-b.x);
@@ -1996,8 +2015,13 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
    if(groupItems.length>3 || groupItems[0]?.x>plan.width*.22)continue;
    const prominent=groupItems.length===1 && groupItems[0].size>=12 && text.length<105;
    if(!prominent)continue;
-   if(!blocks.some(b=>b.kind==='paragraph'&&b.text.replace(/\s+/g,' ').trim()===text)){
-     throw Error('Un título numerado quedó absorbido por una tabla: '+text+'. Se detuvo la conversión para evitar perder el índice.');
+   const preserved=blocks.some(block=>{
+     if(block.kind!=='paragraph'||!Array.isArray(block.source))return false;
+     const sourceIds=new Set(block.source.map(it=>it.index));
+     return groupItems.every(it=>sourceIds.has(it.index));
+   });
+   if(!preserved){
+     throw Error('No se pudo recuperar un título numerado como párrafo: '+text+'. Se detuvo la conversión para evitar perder contenido del índice.');
    }
  }
  const covered=new Set([...excluded,...paragraphs.flatMap(b=>b.source.map(a=>a.index))]);
