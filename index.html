@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.13 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.16 · GitHub Pages</footer>
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
 /*!
@@ -642,6 +642,37 @@ function inTable(el){
   while(p){if(p.namespaceURI===NS.w&&p.localName==='tbl')return true;p=p.parentNode;}
   return false;
 }
+// v1.16: centrar objetos existentes sin cambiar el texto ni la geometría interna de las celdas.
+function tsfMaxParagraphSpacing(doc,par,attribute,value){
+  if(!par || par.localName!=='p')return;
+  const pr=requireChild(doc,par,'pPr');
+  let spacing=firstNS(pr,'spacing');
+  if(!spacing){spacing=node(doc,'spacing');const jc=firstNS(pr,'jc');if(jc)pr.insertBefore(spacing,jc);else pr.appendChild(spacing);}
+  const old=Number(W(spacing,attribute)||0);
+  if(old<value)spacing.setAttributeNS(NS.w,'w:'+attribute,String(value));
+}
+function tsfAlignExistingObjects(doc){
+  const body=by(doc,'body')[0];
+  for(const tbl of by(body,'tbl')){
+    if(inTable(tbl))continue; // No tocar tablas anidadas ni alterar la distribución de sus celdas.
+    const tp=requireChild(doc,tbl,'tblPr');
+    let jc=firstNS(tp,'jc');if(!jc){jc=node(doc,'jc');tp.appendChild(jc);}
+    jc.setAttributeNS(NS.w,'w:val','center');
+    const ind=firstNS(tp,'tblInd');if(ind)ind.setAttributeNS(NS.w,'w:w','0');
+    tsfMaxParagraphSpacing(doc,tbl.previousElementSibling,'after',120);
+    tsfMaxParagraphSpacing(doc,tbl.nextElementSibling,'before',120);
+  }
+  for(const par of by(body,'p')){
+    if(inTable(par)||!by(par,'drawing').length)continue;
+    // Only center self-contained figures: do not change a paragraph that mixes narrative text and figures.
+    if(getTextFromBody(par).trim())continue;
+    const pp=requireChild(doc,par,'pPr');
+    let jc=firstNS(pp,'jc');if(!jc){jc=node(doc,'jc');pp.appendChild(jc);}
+    jc.setAttributeNS(NS.w,'w:val','center');
+    tsfMaxParagraphSpacing(doc,par,'before',140);
+    tsfMaxParagraphSpacing(doc,par,'after',140);
+  }
+}
 function normalizeBodyContent(doc){
   // Do NOT automatically accept/reject tracked changes, delete text, or rewrite table cells.
   // The previously requested cover/index normalization is retained, but source body stays intact.
@@ -661,6 +692,7 @@ function normalizeBodyContent(doc){
     }
   }
   improveTables(doc);
+  tsfAlignExistingObjects(doc);
   return frontMatter;
 }
 async function loadAsset(){
@@ -816,6 +848,10 @@ function headingFromPdf(line,base){
   if(numbered && (bold || line.size>base*1.13) && t.length<119){
     return numbered.level===1?'TSFH1':numbered.level===2?'TSFH2':'TSFH3';
   }
+  // v1.16: los subtítulos jerárquicos de dos niveles no son líneas de cuerpo.
+  // Se excluyen cuentas contables, párrafos largos, y números de operaciones.
+  if(numbered && !numbered.roman && numbered.level===2 &&
+     t.length<=110 && t.split(/\s+/).length<=18 && !/[.!?:;]$/.test(t))return 'TSFH2';
   // No numerical-title classification from font size alone (accounts often use bold).
   if(!/^\d{3,}/.test(t) && line.size>base*1.35 && t.length<115)return 'TSFH1';
   if(!/^\d{3,}/.test(t) && line.size>base*1.17 && t.length<110)return 'TSFH2';
@@ -1237,8 +1273,12 @@ function tsfCellParagraphUnits(text){
   }
   return out.length?out:[{text:'',isBullet:false}];
 }
+// Deliberate white space around visual objects, not extra content or changes to PDF text.
+function tsfObjectSpacer(keepNext=false){
+ return `<w:p><w:pPr>${keepNext?'<w:keepNext/>':''}<w:spacing w:before="0" w:after="0" w:line="135" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:sz w:val="12"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p>`;
+}
 function tsfTableXml(region,data,landscape=false){
- const cols=region.cols,tot=landscape?13700:9110;
+ const cols=region.cols,tot=landscape?13200:9000;
  const distance=cols[cols.length-1]-cols[0];
  const widths=cols.slice(1).map((x,i)=>Math.max(100,Math.round((x-cols[i])/distance*tot)));
  widths[widths.length-1]+=tot-widths.reduce((a,b)=>a+b,0);
@@ -1263,7 +1303,7 @@ function tsfTableXml(region,data,landscape=false){
      return xml+'</w:tc>';
    }).join('')}</w:tr>`;
  }).join('');
- return `<w:tbl><w:tblPr><w:tblW w:w="${tot}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="single" w:sz="5" w:color="D2D6DD"/><w:bottom w:val="single" w:sz="5" w:color="D2D6DD"/><w:left w:val="single" w:sz="5" w:color="D2D6DD"/><w:right w:val="single" w:sz="5" w:color="D2D6DD"/><w:insideH w:val="single" w:sz="4" w:color="D2D6DD"/><w:insideV w:val="single" w:sz="4" w:color="D2D6DD"/></w:tblBorders></w:tblPr><w:tblGrid>${grid}</w:tblGrid>${rows}</w:tbl>`;
+ return tsfObjectSpacer(true)+`<w:tbl><w:tblPr><w:tblW w:w="${tot}" w:type="dxa"/><w:jc w:val="center"/><w:tblInd w:w="0" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="single" w:sz="5" w:color="D2D6DD"/><w:bottom w:val="single" w:sz="5" w:color="D2D6DD"/><w:left w:val="single" w:sz="5" w:color="D2D6DD"/><w:right w:val="single" w:sz="5" w:color="D2D6DD"/><w:insideH w:val="single" w:sz="4" w:color="D2D6DD"/><w:insideV w:val="single" w:sz="4" w:color="D2D6DD"/></w:tblBorders></w:tblPr><w:tblGrid>${grid}</w:tblGrid>${rows}</w:tbl>`+tsfObjectSpacer(false);
 }
 function tsfPdfParagraphs(items,base){
  const rows=tsfCoordGroups(items.map(a=>a.y),2.4).map(g=>({y:g.mean,items:[]}));
@@ -1343,18 +1383,22 @@ function tsfPdfParagraphAlign(block){
 }
 function tsfBlockHtmlXml(pBlock){
  if(pBlock.style==='TSFSource')return `<w:p><w:pPr><w:pStyle w:val="TSFSource"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{note:true,forceSizePt:8})}</w:p>`;
- const heading=/^TSFH[123]$/.test(pBlock.style||'');
+ const outline=tsfOutlineNumber(pBlock.text||'');
+ const numberedLabel=!!outline && (outline.roman || outline.level<=2);
+ const heading=/^TSFH[123]$/.test(pBlock.style||'') || numberedLabel;
  const sz=heading?11:9;
  const indent=Number(pBlock.indent)||0;
 // A common Word list geometry is left=0.25in, hanging=0.14in: the label
   // starts before the text column and wrapped lines follow the text column.
   const indentation=pBlock.listKind==='alphabetic' ? '<w:ind w:left="440" w:hanging="260"/>'
     : pBlock.listKind==='bullet' ? '<w:ind w:left="440" w:hanging="220"/>'
-    : heading ? '<w:ind w:left="0" w:firstLine="0"/>'
+    : heading ? (outline && outline.level>=3 ? '<w:ind w:left="220" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
     : indent>0 ? `<w:ind w:left="${Math.round(Math.min(indent,65)*20)}"/>` : '';
-  const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
-  const before=heading?150:0,after=heading?65:(pBlock.bullet?65:55);
-  const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="235" w:lineRule="auto"/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
+  const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
+  // 9 pt body, 11 pt headings: spacing is measured in twentieths of a point (twips).
+  // Give titled sections breathing room while keeping all text editable.
+  const before=heading?210:0,after=heading?110:(pBlock.bullet?72:68);
+  const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="240" w:lineRule="auto"/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
   return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz})}</w:p>`;
 }
 // Remove source footer/header furniture only in the repeated, geometrically validated zone.
@@ -1583,7 +1627,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
 }
 
 
-/* TSF v1.15 — Revisión por fragmento y estructura original. */
+/* TSF v1.16 — Espacios visuales, centrado de objetos y títulos jerárquicos. */
 const tsfReviewOverlay=document.getElementById('tsf-review-overlay');
 function tsfReviewPreview(block){
  const target=document.getElementById('tsf-review-preview');target.replaceChildren();
@@ -1694,9 +1738,7 @@ async function tsfRenderFigure(page,plan,box,n){
  const cx=Math.round(Math.min(naturalCx,maxCy*w/h));
  const cy=Math.round(cx*h/w);
  const id='rIdTSFFigure'+n;
- const leftMargin=Math.max(0,box.left-36),rightMargin=Math.max(0,plan.width-36-box.right);
- const align=Math.abs(leftMargin-rightMargin)<plan.width*.06?'center':leftMargin<rightMargin?'left':'right';
- return {data,id,name:'tsf_imagen_original_'+n+'.png',xml:`<w:p><w:pPr><w:jc w:val="${align}"/><w:spacing w:before="55" w:after="55"/></w:pPr>${imageMarkup(id,{cx,cy,id:4300+n})}</w:p>`};
+ return {data,id,name:'tsf_imagen_original_'+n+'.png',xml:`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="150" w:after="150"/><w:keepLines/></w:pPr>${imageMarkup(id,{cx,cy,id:4300+n})}</w:p>`};
 }
 
 /* TSF v1.12.1: las imágenes se insertan sin OCR; los bloques nativos se editan. */
