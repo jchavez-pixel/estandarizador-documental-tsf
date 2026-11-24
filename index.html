@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.22 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.23 · GitHub Pages</footer>
 <!-- TSF v1.22: distinción de párrafos numerados X.X.X y subtítulos reales; Arial 10. Sangrías jerárquicas 0/220/440 twips y Arial uniforme en DOCX. -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -406,8 +406,8 @@ function headerXml(meta){
 }
 function footerXml(){
  const disclaimer='Este documento es de uso interno y exclusivo de Total Servicios Financieros Empresa de Créditos. Está prohibida su reproducción total o parcial sin la autorización de la Gerencia o Jefatura (en caso este reporte directamente al Gerente General) que aprueba este documento. Su versión impresa no es válida y solo podrá ser utilizada de referencia; salvo que esté expresamente autorizado por la gerencia / jefatura correspondiente.';
- const field='<w:fldSimple w:instr="PAGE"><w:r><w:rPr><w:sz w:val="13"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>';
- const tbl=`<w:tbl><w:tblPr><w:tblW w:w="9150" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="5" w:color="DFE3E8"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="7800"/><w:gridCol w:w="1350"/></w:tblGrid><w:tr>
+ const field='<w:fldSimple w:instr="PAGE"><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b w:val="1"/><w:color w:val="424751"/><w:sz w:val="13"/><w:szCs w:val="13"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>';
+ const tbl=`<w:tbl><w:tblPr><w:tblW w:w="9150" w:type="dxa"/><w:tblBorders><w:top w:val="nil"/><w:bottom w:val="nil"/><w:left w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="7800"/><w:gridCol w:w="1350"/></w:tblGrid><w:tr>
  <w:tc><w:tcPr><w:tcW w:w="7800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:after="0" w:line="180" w:lineRule="auto"/></w:pPr>${run(disclaimer,{color:'6B7280',sz:12})}</w:p></w:tc>
  <w:tc><w:tcPr><w:tcW w:w="1350" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>${run('Página ',{bold:true,color:'424751',sz:13})}${field}</w:p></w:tc></w:tr></w:tbl>`;
  return `${xmlDeclaration}<w:ftr ${namespaceString}>${tbl}<w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p></w:ftr>`;
@@ -495,7 +495,7 @@ function tsfSizeLevel3Paragraphs(doc){
      const pr=requireChild(doc,r,'rPr');
      for(const key of ['sz','szCs']){
        let nodeSz=firstNS(pr,key);if(!nodeSz){nodeSz=node(doc,key);pr.appendChild(nodeSz);}
-       nodeSz.setAttributeNS(NS.w,'w:val','20');
+       nodeSz.setAttributeNS(NS.w,'w:val','18');
      }
    }
  }
@@ -1757,7 +1757,7 @@ function tsfBlockHtmlXml(pBlock){
  const numberedLabel=!!outline && (outline.roman || outline.level<=2 || realLevel3);
  const heading=/^TSFH[12]$/.test(pBlock.style||'') ||
    ((pBlock.style==='TSFH3') && realLevel3) || numberedLabel;
- const sz=level3?10:(heading?11:9);
+ const sz=level3?9:(heading?11:9);
  const indent=Number(pBlock.indent)||0;
 // A common Word list geometry is left=0.25in, hanging=0.14in: the label
   // starts before the text column and wrapped lines follow the text column.
