@@ -431,14 +431,14 @@ function insertBeforeBody(doc,markup){const body=by(doc,'body')[0];if(!body)thro
 function setPstyle(doc,paragraph,styleId){const pp=requireChild(doc,paragraph,'pPr');let s=firstNS(pp,'pStyle');if(!s){s=node(doc,'pStyle');pp.insertBefore(s,pp.firstChild);}s.setAttributeNS(NS.w,'w:val',styleId);
   for(const old of Array.from(pp.children))if(['shd','pBdr'].includes(old.localName))pp.removeChild(old);
 }
-// TSF v1.19.1: corregido acceso nulo a w:pStyle en párrafos válidos.
-// TSF v1.19: SOLO los títulos numéricos de dos niveles (p.ej. 5.1)
-// reciben sangría. Los de tres niveles (p.ej. 5.2.2) y capítulos
-// permanecen al margen. Nunca se añaden espaciados a los títulos.
+// TSF v1.20: jerarquía independiente del espaciado. Los títulos no se separan
+// de su primer párrafo; jamás se insertan filas o líneas vacías para crear separación.
+// Nivel 2 (5.4): sangría 0.39 cm. Nivel 3 (5.4.1): margen izquierdo.
 function tsfSetHeadingGeometry(doc,par){
   const ppr=requireChild(doc,par,'pPr');
   const outline=tsfOutlineNumber(paragraphText(par));
   const isTwoLevel=!!outline && !outline.roman && outline.level===2;
+  const isRoman=!!outline?.roman;
   let ind=firstNS(ppr,'ind');
   if(!ind){ind=node(doc,'ind');ppr.appendChild(ind);}
   ind.setAttributeNS(NS.w,'w:left',isTwoLevel?'220':'0');
@@ -446,8 +446,13 @@ function tsfSetHeadingGeometry(doc,par){
   ind.removeAttributeNS(NS.w,'hanging');
   let spacing=firstNS(ppr,'spacing');
   if(!spacing){spacing=node(doc,'spacing');ppr.appendChild(spacing);}
-  spacing.setAttributeNS(NS.w,'w:before',outline?.roman?'120':isTwoLevel?'80':'60');
-  spacing.setAttributeNS(NS.w,'w:after',outline?.roman?'50':isTwoLevel?'40':'30');
+  // El margen está medido en twips, 20 twips = 1 punto.
+  spacing.setAttributeNS(NS.w,'w:before',String(isRoman?160:isTwoLevel?120:80));
+  spacing.setAttributeNS(NS.w,'w:after',String(isRoman?64:isTwoLevel?48:36));
+  // Word mantiene los encabezados unidos al párrafo siguiente y no los deja huérfanos.
+  for(const property of ['keepNext','keepLines','widowControl']){
+    if(!firstNS(ppr,property))ppr.appendChild(node(doc,property));
+  }
   let jc=firstNS(ppr,'jc');
   if(!jc){jc=node(doc,'jc');ppr.appendChild(jc);}
   jc.setAttributeNS(NS.w,'w:val','left');
@@ -577,7 +582,14 @@ function tsfOutlineNumber(text){
 }
 function headingEntries(doc){
  const body=by(doc,'body')[0],entries=[];
- const pars=childrenNS(body,'p');let id=45000;
+ // En sucesivas estandarizaciones no pueden quedar marcadores TSF anteriores:
+ // duplicar _TSF_heading_# hace que PAGEREF apunte a otra página o use 1.
+ const old=by(body,'bookmarkStart').filter(el=>/^_TSF_heading_/.test(W(el,'name')||''));
+ const ids=new Set(old.map(el=>W(el,'id')));
+ for(const el of old)el.parentNode.removeChild(el);
+ for(const el of by(body,'bookmarkEnd').filter(el=>ids.has(W(el,'id'))))el.parentNode.removeChild(el);
+ const used=by(doc,'bookmarkStart').map(el=>Number(W(el,'id'))).filter(Number.isFinite);
+ const pars=childrenNS(body,'p');let id=Math.max(45000,...used)+1;
  for(const par of pars){
    const text=paragraphText(par).replace(/\s+/g,' ').trim();
    if(!text||text.length>210)continue;
@@ -691,6 +703,8 @@ function tsfAlignExistingObjects(doc){
     let jc=firstNS(tp,'jc');if(!jc){jc=node(doc,'jc');tp.appendChild(jc);}
     jc.setAttributeNS(NS.w,'w:val','center');
     const ind=firstNS(tp,'tblInd');if(ind)ind.setAttributeNS(NS.w,'w:w','0');
+    // Distancia pequeña alrededor de la tabla mediante formato de párrafo,
+    // sin insertar filas ni alterar el contenido ni sus celdas.
     tsfMaxParagraphSpacing(doc,tbl.previousElementSibling,'after',120);
     tsfMaxParagraphSpacing(doc,tbl.nextElementSibling,'before',120);
   }
@@ -722,11 +736,39 @@ function tsfTidyPreviouslyGenerated(doc){
  for(let i=0;i<top().length-1;i++){
    const pars=top(),a=pars[i],b=pars[i+1];
    const sa=firstNS(firstNS(a,'pPr')||a,'pStyle'),sb=firstNS(firstNS(b,'pPr')||b,'pStyle');
-   if(!/^TSFH[123]$/.test(sa?W(sa,'val'):'') || (sb?W(sb,'val'):'')!=='TSFBody')continue;
+   if(!/^(?:TSFH|TtuloTSF)[123]$/.test(sa?W(sa,'val'):'') || !/^(?:TSFBody|TextoTSF)$/.test(sb?W(sb,'val'):''))continue;
    const title=paragraphText(a).trim(),continued=paragraphText(b).trim();
    if(!/^\d{1,2}(?:\.\d{1,2}){1,3}\.?\s/.test(title))continue;
    if(!/^(?:del|de|caja|extremos|riesgo|crediticio|meses|banda|para|en)\b/i.test(continued))continue;
-   if(continued.length>135||!runStrong(b)||hasRevision(a)||hasRevision(b))continue;
+   if(hasRevision(a)||hasRevision(b))continue;
+   // A source Word sometimes puts only the final words of a title in bold at
+   // the beginning of its following normal paragraph. Move JUST those bold
+   // runs back into the heading; preserve the narrative paragraph unchanged.
+   const firstRuns=childrenNS(b,'r');
+   const prefixRuns=[];
+   for(const r of firstRuns){
+     const t=paragraphText(r);
+     if(!t.trim()&&!prefixRuns.length)continue;
+     const rpr=firstNS(r,'rPr'),bold=rpr&&firstNS(rpr,'b');
+     if(bold&&!['0','false','off'].includes(String(W(bold,'val')||'1').toLowerCase()))prefixRuns.push(r);
+     else break;
+   }
+   const boldPrefix=prefixRuns.map(paragraphText).join('').trim();
+   if(boldPrefix && boldPrefix.length<=75 && !runStrong(b) &&
+       /^(?:de|del|caja|extremos|riesgo|crediticio|meses|banda|para|en)\b/i.test(boldPrefix) &&
+       continued.startsWith(boldPrefix) && prefixRuns.length<firstRuns.length){
+     const space=node(doc,'r'),text=node(doc,'t');text.setAttribute('xml:space','preserve');text.textContent=' ';space.appendChild(text);a.appendChild(space);
+     for(const r of prefixRuns){
+       const pr=requireChild(doc,r,'rPr');let size=firstNS(pr,'sz');
+       if(!size){size=node(doc,'sz');pr.appendChild(size);}size.setAttributeNS(NS.w,'w:val','22');
+       a.appendChild(r);
+     }
+     const residual=childrenNS(b,'r');
+     if(residual.length){const txt=firstNS(residual[0],'t');if(txt)txt.textContent=txt.textContent.replace(/^\s+/,'');}
+     if(!paragraphText(b).trim())body.removeChild(b);
+     i--;continue;
+   }
+   if(continued.length>135||!runStrong(b))continue;
    const gap=node(doc,'r'),t=node(doc,'t');t.setAttribute('xml:space','preserve');t.textContent=' ';gap.appendChild(t);a.appendChild(gap);
    for(const child of Array.from(b.childNodes)){
      if(child.nodeType!==1||child.namespaceURI!==NS.w||child.localName==='pPr')continue;
@@ -744,7 +786,7 @@ function tsfTidyPreviouslyGenerated(doc){
  // Sangría francesa y tabulador homogéneos para viñetas del motor TSF.
  for(const p of top()){
    const pr=firstNS(p,'pPr');const styled=firstNS(pr||p,'pStyle');
-   if((styled?W(styled,'val'):'')!=='TSFBody'||hasRevision(p))continue;
+   if(!/^(?:TSFBody|TextoTSF)$/.test(styled?W(styled,'val'):'')||hasRevision(p))continue;
    if(!/^(?:[•●○◦]|[a-z][.)])\s/u.test(paragraphText(p)))continue;
    const r=childrenNS(p,'r');
    if(r.length<2||!/^\s+$/.test(paragraphText(r[1])))continue;
@@ -788,6 +830,34 @@ function tsfMergeContinuedTables(doc){
     return tsfMergeContinuedTables(doc);
   }
 }
+// TSF v1.20: recuperación puntual de palabras que quedaron tras una tabla.
+// Solo mover una continuación inequívoca al párrafo de la celda que termina
+// en esa misma frase. No inferir, inventar ni añadir palabras.
+function tsfRestoreDetachedTableWord(doc){
+ const body=by(doc,'body')[0];if(!body)return;
+ const children=Array.from(body.children).filter(x=>x.namespaceURI===NS.w);
+ const hasReview=el=>['ins','del','moveFrom','moveTo','commentReference','commentRangeStart','commentRangeEnd'].some(tag=>by(el,tag).length);
+ for(let i=0;i<children.length;i++){
+   const tbl=children[i];if(tbl.localName!=='tbl'||hasReview(tbl))continue;
+   const rows=childrenNS(tbl,'tr');if(rows.length<3)continue;
+   const top=childrenNS(rows[0],'tc').map(getTextFromBody);
+   if(top.length!==2||!/cargo/i.test(top[0])||!/responsabilidades/i.test(top[1]))continue;
+   let j=i+1;
+   while(j<children.length && j<i+5 && children[j].localName==='p'&&!getTextFromBody(children[j]).trim())j++;
+   const detached=children[j];
+   if(!detached||detached.localName!=='p'||!/^implementar$/i.test(getTextFromBody(detached))||hasReview(detached))continue;
+   const targets=[];
+   for(const row of rows.slice(1)){
+     const cell=childrenNS(row,'tc')[1];if(!cell)continue;
+     for(const par of childrenNS(cell,'p'))if(/participar en las acciones correctivas a\s*$/i.test(paragraphText(par)))targets.push(par);
+   }
+   if(targets.length!==1)continue;
+   const target=targets[0];
+   const gap=node(doc,'r'),txt=node(doc,'t');txt.textContent=' ';txt.setAttribute('xml:space','preserve');gap.appendChild(txt);target.appendChild(gap);
+   for(const run of childrenNS(detached,'r'))target.appendChild(run);
+   body.removeChild(detached);
+ }
+}
 // Espaciado moderado solo para párrafos generados por el propio motor.
 // Un DOCX de origen conserva sus formatos directos, revisiones y comentarios.
 function tsfBreathingForGeneratedText(doc){
@@ -795,12 +865,12 @@ function tsfBreathingForGeneratedText(doc){
  for(const par of childrenNS(body,'p')){
   const pp=firstNS(par,'pPr');const style=firstNS(pp||par,'pStyle');
   // Los párrafos sin w:pStyle son válidos en OOXML; no asumir que existe.
-  if(!pp || !style || W(style,'val')!=='TSFBody'||tsfIsNoteParagraph(par)||isInsideRevision(par))continue;
+  if(!pp || !style || !/^(?:TSFBody|TextoTSF)$/.test(W(style,'val'))||tsfIsNoteParagraph(par)||isInsideRevision(par))continue;
   let sp=firstNS(pp,'spacing');if(!sp){sp=node(doc,'spacing');pp.appendChild(sp);}
   const t=paragraphText(par).trim();const bullet=/^(?:[•●○◦]|[a-z][.)])\s*/i.test(t);
   sp.setAttributeNS(NS.w,'w:before','0');
-  sp.setAttributeNS(NS.w,'w:after',bullet?'20':'40');
-  sp.setAttributeNS(NS.w,'w:line','238');sp.setAttributeNS(NS.w,'w:lineRule','auto');
+  sp.setAttributeNS(NS.w,'w:after',bullet?'24':'36');
+  sp.setAttributeNS(NS.w,'w:line','258');sp.setAttributeNS(NS.w,'w:lineRule','auto');
  }
 }
 function normalizeBodyContent(doc){
@@ -824,6 +894,7 @@ function normalizeBodyContent(doc){
     }
   }
   tsfMergeContinuedTables(doc);
+  tsfRestoreDetachedTableWord(doc);
   tsfBreathingForGeneratedText(doc);
   improveTables(doc);
   tsfAlignExistingObjects(doc);
@@ -885,6 +956,14 @@ async function patchPackage(zip,meta,{newDoc=false,bodyXml='' }={}){
     // página, sin duplicarla: editarla o borrarla implicaría alterar evidencia.
   }else{
     insertBeforeBody(document,cover(meta)+tocPage(entries));
+  }
+  // Centrar también las tablas de portada y del índice creadas en esta pasada,
+  // sin insertar líneas, tocar celdas, ni cambiar su ancho intrínseco.
+  for(const tbl of childrenNS(by(document,'body')[0],'tbl')){
+    const pr=requireChild(document,tbl,'tblPr');
+    let align=firstNS(pr,'jc');if(!align){align=node(document,'jc');pr.appendChild(align);}
+    align.setAttributeNS(NS.w,'w:val','center');
+    const indent=firstNS(pr,'tblInd');if(indent)indent.setAttributeNS(NS.w,'w:w','0');
   }
   // Las nuevas tablas de portada van ANTES de las tablas originales cuando se generaron.
   const tablesAfter=tableMatrix(document);
@@ -1521,6 +1600,35 @@ function tsfJoinWrappedHeadings(paragraphs){
  }
  return paragraphs;
 }
+// TSF v1.20: Si la última línea de un título termina donde comienza un párrafo
+// regular, usar el cambio de fuente del PDF para separarlos. No reescribir letras.
+// Un ejemplo es "5.3.2 ... a 4 / meses El presente ...".
+function tsfSplitHeadingFromNarrative(paragraphs){
+ const boldOf=it=>/bold|heavy|semi.?bold/i.test(it.fontName||it.style?.postscriptName||'');
+ for(let i=0;i<paragraphs.length-1;i++){
+   const a=paragraphs[i],b=paragraphs[i+1];
+   if(!/^TSFH[123]$/.test(a.style||'')||b.style!=='TSFBody'||b.bullet||!a.y||!b.y)continue;
+   if(!tsfOutlineNumber(a.text)||a.y-b.y<2||a.y-b.y>24)continue;
+   const sorted=(b.source||[]).slice().sort((x,y)=>y.y-x.y||x.x-y.x);
+   if(sorted.length<2||!boldOf(sorted[0]))continue;
+   const prefix=[];
+   for(const it of sorted){if(!boldOf(it))break;prefix.push(it);}
+   if(!prefix.length||prefix.length===sorted.length)continue;
+   const titleTail=prefix.map(x=>x.str||'').join(' ').replace(/\s+/g,' ').trim();
+   const full=String(b.text||'').replace(/\s+/g,' ').trim();
+   if(!titleTail||titleTail.length>80||!full.startsWith(titleTail))continue;
+   const remainder=full.slice(titleTail.length).trim();
+   if(remainder.length<8||!/^\p{Lu}/u.test(remainder))continue;
+   // A source title has a lowercase continuation and then starts regular prose.
+   if(!/^(?:de|del|la|las|el|y|en|por|para|con|sin|meses|banda|crediticio|BAF|riesgo)\b/i.test(titleTail))continue;
+   a.text=a.text.trimEnd()+' '+titleTail;
+   a.source=[...(a.source||[]),...prefix];
+   b.text=remainder;
+   b.source=sorted.slice(prefix.length);
+ }
+ return paragraphs;
+}
+
 // Al convertir una viñeta visible del PDF, se mantiene el símbolo original,
 // pero un tabulador Word separa símbolo y contenido para que TODAS las líneas
 // de continuación arranquen exactamente bajo el texto, no bajo el punto.
@@ -1562,9 +1670,9 @@ function tsfBlockHtmlXml(pBlock){
   const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
   // 9 pt body, 11 pt headings: spacing is measured in twentieths of a point (twips).
   // TSF v1.19: no introducir espaciado adicional entre párrafos/títulos.
-  const before=heading?(outline?.roman?120:(outline?.level===2?80:60)):0;
-  const after=heading?(outline?.roman?50:35):(isList?22:40);
-  const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="236" w:lineRule="auto"/><w:widowControl/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
+  const before=heading?(outline?.roman?160:(outline?.level===2?120:80)):0;
+  const after=heading?(outline?.roman?64:(outline?.level===2?48:36)):(isList?24:36);
+  const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="258" w:lineRule="auto"/><w:widowControl/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
   const textXml=isList?tsfListXml(pBlock):tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz});
   return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${textXml}</w:p>`;
 }
@@ -1777,6 +1885,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  // Un subtítulo puede ocupar dos líneas visuales del PDF: deben ser UN párrafo de Word.
  // Solo se une si la continuación es próxima, predominantemente negrita y no es una lista.
  tsfJoinWrappedHeadings(paragraphs);
+ tsfSplitHeadingFromNarrative(paragraphs);
  const blocks=[...tableBlocks,...imageBlocks,...paragraphs.map(b=>({...b,pageWidth:plan.width,kind:'paragraph'}))].sort((a,b)=>b.y-a.y);
  // Safety: a numbered section title must remain a Word paragraph, NEVER a table cell.
  const rows=tsfCoordGroups(items.map(a=>a.y),2.4);
@@ -1797,7 +1906,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
 }
 
 
-/* TSF v1.19 — Sangría solo para títulos de dos niveles; sin nuevos espaciados. */
+/* TSF v1.20 — Títulos unidos a su contenido, ritmo vertical controlado; tablas e imágenes centradas. */
 const tsfReviewOverlay=document.getElementById('tsf-review-overlay');
 function tsfReviewPreview(block){
  const target=document.getElementById('tsf-review-preview');target.replaceChildren();
