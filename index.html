@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.30 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.31 · GitHub Pages</footer>
 <!-- TSF v1.27: preserva el diseño v1.26 y elimina selectivamente los índices originales llamados «Contenido» o «Índice». -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -440,7 +440,7 @@ function tsfSetHeadingGeometry(doc,par,forcedLevel=0){
   const ppr=requireChild(doc,par,'pPr');
   const outline=tsfOutlineNumber(paragraphText(par));
   const level=forcedLevel||(outline?.roman?1:(outline?.level||1));
-  const left=level>=3?440:level===2?220:0;
+  const left=level>=3?320:level===2?160:0; // v1.31: sangría suavemente reducida
   let ind=firstNS(ppr,'ind');
   if(!ind){ind=node(doc,'ind');ppr.appendChild(ind);}
   ind.setAttributeNS(NS.w,'w:left',String(left));
@@ -448,8 +448,8 @@ function tsfSetHeadingGeometry(doc,par,forcedLevel=0){
   ind.removeAttributeNS(NS.w,'hanging');
   let spacing=firstNS(ppr,'spacing');
   if(!spacing){spacing=node(doc,'spacing');ppr.appendChild(spacing);}
-  spacing.setAttributeNS(NS.w,'w:before',String(outline?.roman?160:level===2?120:80));
-  spacing.setAttributeNS(NS.w,'w:after',String(outline?.roman?64:level===2?48:36));
+  spacing.setAttributeNS(NS.w,'w:before',String(outline?.roman?145:level===2?85:65));
+  spacing.setAttributeNS(NS.w,'w:after',String(outline?.roman?36:level===2?20:20));
   for(const property of ['keepNext','keepLines','widowControl']){
     if(!firstNS(ppr,property))ppr.appendChild(node(doc,property));
   }
@@ -1083,6 +1083,72 @@ function tsfFixedWordTypography(doc){
   }
  }
 }
+// TSF v1.31: comprime ÚNICAMENTE los párrafos verdaderamente vacíos que
+// siguen inmediatamente a un título. No elimina contenido, imágenes, saltos,
+// revisiones, marcadores, fórmulas ni elementos de tablas.
+function tsfCompactEmptyAfterHeadings(doc){
+ const body=by(doc,'body')[0];if(!body)return;
+ for(const heading of childrenNS(body,'p')){
+  const pp=firstNS(heading,'pPr');
+  const style=W(firstNS(pp||heading,'pStyle')||heading,'val');
+  if(!/^TSFH[123]$/.test(style))continue;
+  const next=heading.nextElementSibling;
+  if(!next || next.namespaceURI!==NS.w || next.localName!=='p')continue;
+  if(paragraphText(next).trim() || next.textContent.trim())continue;
+  // Un párrafo sin texto puede contener campos, imágenes, saltos o comentarios.
+  const disallowed=new Set(['r','hyperlink','sdt','fldSimple','drawing','pict','object',
+   'bookmarkStart','bookmarkEnd','commentRangeStart','commentRangeEnd',
+   'ins','del','moveFrom','moveTo','sectPr','numPr','pageBreakBefore','lastRenderedPageBreak']);
+  if([...next.getElementsByTagNameNS(NS.w,'*')].some(n=>disallowed.has(n.localName)))continue;
+  if(isInsideRevision(next))continue;
+  const ppr=requireChild(doc,next,'pPr');
+  let sp=firstNS(ppr,'spacing');if(!sp){sp=node(doc,'spacing');ppr.appendChild(sp);}
+  sp.setAttributeNS(NS.w,'w:before','0');sp.setAttributeNS(NS.w,'w:after','0');
+  sp.setAttributeNS(NS.w,'w:line','80');sp.setAttributeNS(NS.w,'w:lineRule','exact');
+  // 4 pt solo para ese salto visual: la tipografía del contenido sigue igual.
+  const rp=requireChild(doc,ppr,'rPr');
+  for(const k of ['sz','szCs']){
+   let x=firstNS(rp,k);if(!x){x=node(doc,k);rp.appendChild(x);}
+   x.setAttributeNS(NS.w,'w:val','8');
+  }
+ }
+}
+// TSF v1.31: la numeración automática de encabezados ya no debe ir seguida
+// de una tabulación enorme. Modificar solo las listas EXCLUSIVAS de títulos.
+// Las numeraciones de viñetas, tablas y listas operativas se dejan intactas.
+function tsfCompactHeadingNumbering(document,numbering){
+ if(!numbering)return;
+ const body=by(document,'body')[0];if(!body)return;
+ const use=new Map();
+ for(const par of childrenNS(body,'p')){
+  const pp=firstNS(par,'pPr'),nr=firstNS(pp||par,'numPr');
+  const id=W(firstNS(nr||par,'numId')||par,'val');
+  if(!id || !/^\d+$/.test(id))continue;
+  const st=W(firstNS(pp||par,'pStyle')||par,'val');
+  const level=Number(W(firstNS(nr,'ilvl')||nr,'val')||0);
+  if(!use.has(id))use.set(id,{safe:true,levels:new Set()});
+  const group=use.get(id);
+  if(!/^TSFH[123]$/.test(st))group.safe=false;
+  else group.levels.add(level);
+ }
+ const nums=by(numbering,'num');
+ for(const [id,group] of use){
+  if(!group.safe || !group.levels.size)continue;
+  const num=nums.find(n=>W(n,'numId')===id);if(!num)continue;
+  const ai=firstNS(num,'abstractNumId');const absid=ai?W(ai,'val'):'';
+  if(!absid)continue;
+  const refs=nums.filter(n=>W(firstNS(n,'abstractNumId')||n,'val')===absid);
+  if(refs.some(n=>{const u=use.get(W(n,'numId'));return u && !u.safe;}))continue;
+  const abs=by(numbering,'abstractNum').find(n=>W(n,'abstractNumId')===absid);
+  if(!abs)continue;
+  for(const lvl of childrenNS(abs,'lvl')){
+   if(!group.levels.has(Number(W(lvl,'ilvl')||0)))continue;
+   let suf=firstNS(lvl,'suff');if(!suf){suf=node(numbering,'suff');lvl.appendChild(suf);}
+   suf.setAttributeNS(NS.w,'w:val','space');
+  }
+ }
+}
+
 function tsfFixWordNumberingFonts(numberingDoc){
  if(!numberingDoc)return;
  for(const lvl of by(numberingDoc,'lvl')){
@@ -1134,6 +1200,7 @@ function normalizeBodyContent(doc,newDoc=false){
   tsfSizeLevel3Paragraphs(doc);
   tsfForceArialAllRuns(doc);
   if(!newDoc)tsfFixedWordTypography(doc);
+  tsfCompactEmptyAfterHeadings(doc);
   return frontMatter;
 }
 async function loadAsset(){
@@ -1226,6 +1293,7 @@ async function patchPackage(zip,meta,{newDoc=false,bodyXml='' }={}){
   if(!newDoc && fileExists(zip,'word/numbering.xml')){
     const numbering=xmlParse(await zip.file('word/numbering.xml').async('string'),'numbering.xml');
     tsfFixWordNumberingFonts(numbering);
+    tsfCompactHeadingNumbering(document,numbering);
     zip.file('word/numbering.xml',xmlSave(numbering));
   }
   zip.file(relsPath,xmlSave(rels));
@@ -2020,16 +2088,16 @@ function tsfBlockHtmlXml(pBlock){
   // starts before the text column and wrapped lines follow the text column.
   const isList=pBlock.listKind==='alphabetic'||pBlock.listKind==='bullet';
   // 23 pt desde el margen para el texto; símbolo a 11 pt, tabulador exacto a 23 pt.
-  const indentation=isList?'<w:ind w:left="460" w:hanging="240"/><w:tabs><w:tab w:val="left" w:pos="460"/></w:tabs>'
-    : level3 ? '<w:ind w:left="440" w:firstLine="0"/>'
-    : numberedTwo && !heading ? '<w:ind w:left="220" w:firstLine="0"/>'
-    : heading ? (outline && !outline.roman && outline.level===2 ? '<w:ind w:left="220" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
+  const indentation=isList?'<w:ind w:left="400" w:hanging="210"/><w:tabs><w:tab w:val="left" w:pos="400"/></w:tabs>'
+    : level3 ? '<w:ind w:left="320" w:firstLine="0"/>'
+    : numberedTwo && !heading ? '<w:ind w:left="160" w:firstLine="0"/>'
+    : heading ? (outline && !outline.roman && outline.level===2 ? '<w:ind w:left="160" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
     : indent>0 ? `<w:ind w:left="${Math.round(Math.min(indent,65)*20)}"/>` : '';
   const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
   // 9 pt body, 11 pt headings: spacing is measured in twentieths of a point (twips).
   // TSF v1.19: no introducir espaciado adicional entre párrafos/títulos.
-  const before=heading?(outline?.roman?160:(outline?.level===2?120:0)):0;
-  const after=level3?0:(heading?(outline?.roman?64:(outline?.level===2?48:36)):(isList?24:36));
+  const before=heading?(outline?.roman?145:(outline?.level===2?85:0)):0;
+  const after=level3?0:(heading?(outline?.roman?36:(outline?.level===2?20:20)):(isList?24:36));
   const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="258" w:lineRule="auto"/><w:widowControl/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
   const textXml=isList?tsfListXml(pBlock):tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz,forceBold:heading});
   return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${textXml}</w:p>`;
