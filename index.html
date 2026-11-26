@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.32 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.33 · GitHub Pages</footer>
 <!-- TSF v1.27: preserva el diseño v1.26 y elimina selectivamente los índices originales llamados «Contenido» o «Índice». -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -2216,8 +2216,11 @@ function tsfBlockHtmlXml(pBlock){
   const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
   // 9 pt body, 11 pt headings: spacing is measured in twentieths of a point (twips).
   // TSF v1.19: no introducir espaciado adicional entre párrafos/títulos.
-  const before=heading?(outline?.roman?145:(outline?.level===2?85:0)):0;
-  const after=level3?0:(heading?(outline?.roman?36:(outline?.level===2?20:20)):(isList?24:36));
+  // TSF v1.33: separación prudente; no cambia el texto ni sus tamaños.
+  // Los valores son twips: 20 twips = 1 punto.
+  const before=heading?(outline?.roman?150:(outline?.level===1?135:outline?.level===2?95:70)):0;
+  const after=heading?(outline?.roman?55:(outline?.level===1?55:outline?.level===2?46:35))
+    :(level3?24:(isList?32:52));
   const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="258" w:lineRule="auto"/><w:widowControl/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
   const textXml=isList?tsfListXml(pBlock):tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz,forceBold:heading});
   return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${textXml}</w:p>`;
@@ -2521,9 +2524,55 @@ function tsfScanSourcePdfIndex(plan,pageNumber){
      remove.add(i);
    }else previous=null;
  }
+ // TSF v1.33: índices históricos sin números de página ni puntos guía.
+ // La ruta PDF->Word no utiliza tsfRemoveInlineLegacyIndex (que es WORD->Word).
+ // Solo excluir un bloque si: encabezado formal, varios capítulos numerados,
+ // al menos 7 epígrafes y ninguna narración larga. Un encabezado ambiguo SE CONSERVA.
+ if(entryRows.length<5 || witnessed<5){
+   const nline=/^\s*(\d{1,2}(?:\.\d{1,2}){0,3})\s*\.?(?:\s*[-–—]\s*|\s+)(.{3,})$/u;
+   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+     .replace(/[^a-zA-Z0-9\s]/g,' ').toLowerCase().replace(/\s+/g,' ').trim();
+   let start=titleIdx+1;
+   while(start<rows.length&&!rows[start].text.trim())start++;
+   // An index without page leaders must begin with a chapter 1 (or I).
+   const first=rows[start]?.text.match(nline);
+   if(!first||first[1]!=='1')return empty;
+   let end=rows.length;
+   for(let i=start+7;i<rows.length;i++){
+     const m=rows[i].text.match(nline);
+     if(m&&m[1]===first[1]&&norm(m[2])===norm(first[2])){end=i;break;}
+   }
+   const candidate=rows.slice(start,end);
+   const entries=candidate.map(r=>r.text.match(nline)).filter(Boolean);
+   const majors=new Set(entries.map(m=>m[1]).filter(n=>/^\d{1,2}$/.test(n)));
+   const allowedLabel=/^(?:activas|pasivas|anexos|anexo(?:s)?|parte\s+[ivx]+)$/i;
+   const unknown=candidate.filter(r=>{
+     const t=r.text.trim();
+     return t && !nline.test(t) && !allowedLabel.test(norm(t));
+   });
+   const longEntry=candidate.some(r=>r.text.length>160);
+   const confirmed=entries.length>=7&&majors.size>=3&&
+     unknown.length===0&&!longEntry&&candidate.length<=entries.length+5;
+   if(!confirmed)return empty;
+   const indexItems=new Set();
+   for(let i=titleIdx;i<end;i++)for(const it of rows[i].items)indexItems.add(it.index);
+   // Source document titles immediately above a standalone historical index
+   // belong to its discarded frontmatter, not to the substantive body.
+   if(pageNumber===1 && titleIdx>0){
+      const previous=rows[titleIdx-1];
+      const t=previous.text.trim();
+      if(t.length>=15&&t.length<=125&&
+         previous.y-rows[titleIdx].y<65&&
+         t===t.toUpperCase() &&
+         !/^\d/.test(t))for(const it of previous.items)indexItems.add(it.index);
+   }
+   const kept=raw.filter(it=>!indexItems.has(it.index));
+   return {found:true,plan:{...plan,items:kept},hints:[],
+      removed:raw.length-kept.length,lines:end-titleIdx,
+      noPageReferences:true};
+ }
  // Triple verificación: rótulo formal, >=5 epígrafes y >=5 referencias
  // reconocibles. Una mención aislada «Contenido» no basta para borrar texto.
- if(entryRows.length<5 || witnessed<5)return empty;
  remove.add(titleIdx);
  const doomed=new Set();
  for(const i of remove)for(const item of rows[i].items)doomed.add(item.index);
@@ -2946,6 +2995,10 @@ async function pdfToDocx(buffer,meta,onProgress,options={}){
    const test=await JSZip.loadAsync(out);
    if(!test.file('word/document.xml')||!test.file('word/headerTSF.xml'))throw Error('El paquete Word no superó la validación estructural.');
    const check=xmlParse(await test.file('word/document.xml').async('string'));
+   // TSF v1.33: nunca entregar silenciosamente un PDF convertido con dos índices.
+   const indexCount=by(check,'p').filter(p=>/^indice$/i.test(
+     paragraphText(p).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim())).length;
+   if(indexCount>1)throw Error('Se detectaron '+indexCount+' índices en el Word generado. Se detuvo la descarga para evitar duplicaciones; revisa el índice original del PDF.');
    const countTables=by(check,'tbl').length;
    if(countTables<tables)throw Error('Faltan tablas editables en el Word resultante.');
    const info='Se recuperaron '+tables+' tablas, '+paragraphs+' párrafos y se conservaron '+figures.length+' imágenes independientes; '+landscapeCount+' página(s) horizontales. La geometría de PDF no asegura una reproducción exacta de todas las celdas fusionadas: revisa el Word antes de aprobarlo.';
