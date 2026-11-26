@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.28 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.29 · GitHub Pages</footer>
 <!-- TSF v1.27: preserva el diseño v1.26 y elimina selectivamente los índices originales llamados «Contenido» o «Índice». -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -316,7 +316,7 @@ const styleDefinition = [
   ['TSFBody', 'Texto TSF', 18, '242424', false],
   ['TSFH1', 'Título TSF 1', 22, '242424', true],
   ['TSFH2', 'Título TSF 2', 22, '242424', true],
-  ['TSFH3', 'Título TSF 3', 20, '242424', true]
+  ['TSFH3', 'Título TSF 3', 18, '242424', true]
   ,['TSFMath','Fórmula original editable',18,'242424',false]
 ].map(([id,label,size,color,bold])=>`<w:style w:type="paragraph" w:styleId="${id}" w:customStyle="1"><w:name w:val="${esc(label)}"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="0" w:after="0" w:line="235" w:lineRule="auto"/>${bold?'':'<w:jc w:val="both"/>'}${bold?'<w:keepNext/>':''}</w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="${color}"/><w:sz w:val="${size}"/>${bold?'<w:b/>':''}</w:rPr></w:style>`).join('');
 function normalizeStyles(stylesDoc){
@@ -436,10 +436,10 @@ function setPstyle(doc,paragraph,styleId){const pp=requireChild(doc,paragraph,'p
 // de su primer párrafo; jamás se insertan filas o líneas vacías para crear separación.
 // Nivel 2 (5.4): sangría 0.39 cm. Nivel 3 (5.4.1): margen izquierdo.
 // TSF v1.21: jerarquía visual, sin cambiar el orden ni la numeración original.
-function tsfSetHeadingGeometry(doc,par){
+function tsfSetHeadingGeometry(doc,par,forcedLevel=0){
   const ppr=requireChild(doc,par,'pPr');
   const outline=tsfOutlineNumber(paragraphText(par));
-  const level=outline?.roman?1:(outline?.level||1);
+  const level=forcedLevel||(outline?.roman?1:(outline?.level||1));
   const left=level>=3?440:level===2?220:0;
   let ind=firstNS(ppr,'ind');
   if(!ind){ind=node(doc,'ind');ppr.appendChild(ind);}
@@ -458,7 +458,7 @@ function tsfSetHeadingGeometry(doc,par){
   jc.setAttributeNS(NS.w,'w:val','left');
   // v1.28: ÚNICAMENTE títulos numerados de niveles 1, 2, 3.
   // No afecta párrafos numerados que no son títulos ni títulos no numerados.
-  if(outline && !outline.roman)tsfApplyNumericHeadingSize(doc,par,level);
+  if(forcedLevel || (outline && !outline.roman))tsfApplyNumericHeadingSize(doc,par,level);
 }
 function tsfApplyNumericHeadingSize(doc,par,level){
  const halfPoints=level===1?22:level===2?20:18; // Arial 11 / 10 / 9
@@ -590,6 +590,78 @@ function findSourceMetadata(doc){
  if(!source.code){const m=text.match(/C[oó]digo\s*:?\s*([A-Z]{2,6}[-_][A-Z0-9_-]{4,25})/i);if(m)source.code=m[1];}
  return source;
 }
+// TSF v1.29 — DOCX Word: reconocer índice automático real (w:sdt/w:TDC*)
+// y portada gráfica de origen sin suprimir contenido narrativo.
+function tsfWordOriginalToc(doc){
+ const body=by(doc,'body')[0]; if(!body)return null;
+ const children=Array.from(body.children).filter(e=>e.namespaceURI===NS.w && e.localName!=='sectPr');
+ for(let i=0;i<Math.min(55,children.length);i++){
+  const el=children[i];if(el.localName!=='sdt')continue;
+  const pars=by(el,'p');
+  if(pars.length<6)continue;
+  const first=pars.slice(0,3).map(paragraphText).join(' ').trim();
+  if(!/^(?:INDICE|ÍNDICE|CONTENIDO|TABLA DE CONTENIDOS)\b/i.test(first))continue;
+  let entries=[];
+  for(const par of pars){
+   const st=W(firstNS(firstNS(par,'pPr')||par,'pStyle')||par,'val');
+   const text=paragraphText(par).replace(/\s+/g,' ').trim();
+   if(!/^TOC\d*$|^TDC\d*$|^TDC\d*$|^TableofContents\d*$/i.test(st) && !/^\d{1,2}(?:\.\d{1,2}){0,3}\.?\s*/.test(text))continue;
+   const m=text.match(/^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s*([^\n]+?)\s*(?:\.{2,}\s*)?\d{1,3}$/u);
+   if(!m)continue;
+   const title=m[2].replace(/[.\s]+$/g,'').trim();
+   if(title)entries.push({number:m[1],level:Math.min(3,m[1].split('.').length),title});
+  }
+  if(entries.length>=4)return {element:el,index:i,children,hints:entries};
+ }
+ return null;
+}
+function tsfWordRemoveSourceFrontmatter(doc,toc){
+ if(!toc)return false;
+ const {element,index,children}=toc;
+ const protectedTags=new Set(['ins','del','moveFrom','moveTo','commentRangeStart','commentRangeEnd','commentReference',
+   'pPrChange','rPrChange','sectPrChange','tblPrChange','tcPrChange','trPrChange']);
+ const sensitive=e=>e?.nodeType===1&&([...e.getElementsByTagNameNS(NS.w,'*')].some(x=>protectedTags.has(x.localName))||protectedTags.has(e.localName));
+ if(sensitive(element))return false;
+ const pre=children.slice(0,index);
+ const mainText=pre.filter(n=>n.localName==='p').map(n=>paragraphText(n).trim()).filter(Boolean);
+ const graphics=pre.some(n=>by(n,'drawing').length>0||by(n,'pict').length>0);
+ const substantial=mainText.some(t=>t.length>155);
+ // Solo eliminar portada cuando sea inequívoca: imagen, hasta 3 renglones de título
+ // y ningún párrafo narrativo antes del índice.
+ const removeCover=graphics && mainText.length<=3 && !substantial && !pre.some(sensitive) && pre.every(n=>n.localName==='p');
+ const body=by(doc,'body')[0];
+ if(removeCover)for(const el of pre)body.removeChild(el);
+ body.removeChild(element);
+ // Separadores vacíos (incluidos saltos del antiguo índice) antes del primer título.
+ const front=Array.from(body.children).filter(e=>e.namespaceURI===NS.w && e.localName!=='sectPr');
+ const first=front.findIndex(el=>el.localName==='p' && (tsfOriginalWordHeadingLevel(el)||detectHeading(el)!=='TSFBody') && paragraphText(el).trim());
+ if(first>0){
+  for(const el of front.slice(0,first)){
+   if(el.localName==='p'&&!paragraphText(el).trim()&&!by(el,'drawing').length&&!by(el,'pict').length&&!sensitive(el))body.removeChild(el);
+  }
+ }
+ return true;
+}
+function tsfOriginalWordHeadingLevel(par){
+ const pp=firstNS(par,'pPr');if(!pp)return 0;
+ const out=firstNS(pp,'outlineLvl');const v=out?Number(W(out,'val')):NaN;
+ const num=firstNS(pp,'numPr');
+ const id=num?firstNS(num,'numId'):null;
+ const idNum=id?Number(W(id,'val')):0;
+ const text=paragraphText(par).trim();
+ if(!text||text.length>190 || !Number.isFinite(v)||v<0||v>2 || !idNum)return 0;
+ // Solo título si el texto mismo tiene formato de título, no por la numeración sola.
+ let total=0,bold=0;
+ for(const r of by(par,'r')){
+  const txt=by(r,'t').map(t=>t.textContent||'').join('');
+  const count=txt.trim().length;total+=count;
+  const pr=firstNS(r,'rPr'),b=pr&&firstNS(pr,'b');
+  if(b&&!['0','false','off'].includes(String(W(b,'val')||'1').toLowerCase()))bold+=count;
+ }
+ const pr=firstNS(pp,'rPr'),b=pr&&firstNS(pr,'b');
+ return (total && (bold/total>=.65 || !!(b && W(b,'val')!=='0')))? v+1 : 0;
+}
+
 function removeRecognizedFrontmatter(doc){
  // Se elimina solamente una portada y un índice existentes claramente identificados.
  // No borra el cuerpo narrativo del documento ni tablas que no pertenezcan al control documental.
@@ -635,7 +707,7 @@ function tsfOutlineNumber(text){
   const level=m[1]?1:(m[2].split('.').length===1?1:Math.min(3,m[2].split('.').length));
   return {level,roman:!!m[1]};
 }
-function headingEntries(doc,newDoc=false,indexHints=[]){
+function headingEntries(doc,newDoc=false,indexHints=[],originalWordHints=[]){
  const body=by(doc,'body')[0],entries=[];
  // En sucesivas estandarizaciones no pueden quedar marcadores TSF anteriores:
  // duplicar _TSF_heading_# hace que PAGEREF apunte a otra página o use 1.
@@ -645,6 +717,7 @@ function headingEntries(doc,newDoc=false,indexHints=[]){
  for(const el of by(body,'bookmarkEnd').filter(el=>ids.has(W(el,'id'))))el.parentNode.removeChild(el);
  const used=by(doc,'bookmarkStart').map(el=>Number(W(el,'id'))).filter(Number.isFinite);
  const pars=childrenNS(body,'p');let id=Math.max(45000,...used)+1;
+ const counters=[0,0,0];
  for(const par of pars){
    const text=paragraphText(par).replace(/\s+/g,' ').trim();
    if(!text)continue;
@@ -660,17 +733,32 @@ function headingEntries(doc,newDoc=false,indexHints=[]){
      return hs.filter(w=>bs.includes(w)).length/hs.length >= (hs.length<=2 ? 1 : .66);
    }):null;
    if(text.length>210&&!matchingHint)continue;
+   const rawStyle=W(firstNS(firstNS(par,'pPr')||par,'pStyle')||par,'val');
+   const originalHint=!newDoc?originalWordHints.find(h=>norm(h.title)===norm(text)):null;
+   const autoLevel=!newDoc?tsfOriginalWordHeadingLevel(par):0;
+   const autoStyledLevel=!newDoc && /^TSFH[123]$/.test(rawStyle) ? Number(rawStyle.slice(-1)):0;
    const outline=tsfOutlineNumber(text) || (matchingHint ? {
       roman:false,level:Math.min(3,match[1].split('.').length)
-   } : null);
+   } : originalHint ? {roman:false,level:originalHint.level} :
+       (autoLevel||autoStyledLevel)?{roman:false,level:autoLevel||autoStyledLevel}:null);
    if(!outline)continue;
-   const rawStyle=W(firstNS(firstNS(par,'pPr')||par,'pStyle')||par,'val');
    const currentStyle=newDoc?rawStyle:detectHeading(par);
    const explicit=newDoc ? (/^TSFH[123]$/.test(rawStyle)||!!matchingHint) :
-      (tsfOutlineNumber(text)?.roman || currentStyle!=='TSFBody');
-   if(!explicit || (outline.level>=3 && !tsfIsTrueLevel3DocxHeading(par) &&
+      (tsfOutlineNumber(text)?.roman || !!originalHint || !!autoLevel || currentStyle!=='TSFBody');
+   if(!explicit || (outline.level>=3 && !autoLevel && !originalHint && !tsfIsTrueLevel3DocxHeading(par) &&
       !(newDoc && rawStyle==='TSFH3' && /:\s*$/.test(text))))continue;
    const level=outline.level;
+   if(originalHint){
+     const n=originalHint.number.split('.').map(Number);
+     for(let k=0;k<3;k++)counters[k]=n[k]||0;
+   }else if(/^\d{1,2}(?:\.\d{1,2}){0,2}/.test(text)){
+     const num=(text.match(/^(\d{1,2}(?:\.\d{1,2}){0,2})/)||[])[1];
+     if(num){const parts=num.split('.').map(Number);for(let k=0;k<3;k++)counters[k]=parts[k]||0;}
+   }else{
+     if(level===1){counters[0]++;counters[1]=counters[2]=0;}
+     else if(level===2){counters[1]++;counters[2]=0;}
+     else counters[2]++;
+   }
    const mark='_TSF_heading_'+String(entries.length+1);
    const start=node(doc,'bookmarkStart',{id:id,name:mark});
    const end=node(doc,'bookmarkEnd',{id:id});id++;
@@ -682,7 +770,9 @@ function headingEntries(doc,newDoc=false,indexHints=[]){
      setPstyle(doc,par,level===1?'TSFH1':level===2?'TSFH2':'TSFH3');
      tsfSetHeadingGeometry(doc,par);
    }
-   const entryText=plainIndexedParagraph ? match[1]+' '+matchingHint.title : text;
+   const sourceNumber=originalHint?.number || (tsfOutlineNumber(text)?null:counters.slice(0,level).join('.'));
+   const entryText=plainIndexedParagraph ? match[1]+' '+matchingHint.title :
+     (sourceNumber?sourceNumber+(level===1?'. ':' ')+text:text);
    entries.push({mark,text:entryText,level});
    if(entries.length>=110)break;
  }
@@ -951,6 +1041,62 @@ function tsfBreathingForGeneratedText(doc){
   sp.setAttributeNS(NS.w,'w:line','258');sp.setAttributeNS(NS.w,'w:lineRule','auto');
  }
 }
+// TSF v1.29 — Contrato tipográfico único de WORD:
+// contenido, viñetas y celdas = Arial 9 pt; encabezados numerados = 11 / 10 / 9 pt.
+// Respeta negrita, cursiva, subrayado, imágenes y contenido de las tablas.
+function tsfFixedWordTypography(doc){
+ const body=by(doc,'body')[0];if(!body)return;
+ for(const par of by(body,'p')){
+  if(isInsideRevision(par) || tsfIsNoteParagraph(par))continue;
+  const inCell=inTable(par);
+  const pp=requireChild(doc,par,'pPr');
+  const style=W(firstNS(pp,'pStyle')||par,'val');
+  const auto= !inCell ? tsfOriginalWordHeadingLevel(par):0;
+  const match=paragraphText(par).trim().match(/^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+/);
+  const actualHeading=/^TSFH([123])$/.exec(style);
+  const headingLevel=auto||(!inCell&&actualHeading?Number(actualHeading[1]):0);
+  // Si el motor etiquetó incorrectamente un párrafo narrativo numerado como título, corrige.
+  let size=headingLevel===1?22:headingLevel===2?20:18;
+  let sp=firstNS(pp,'spacing');if(!sp){sp=node(doc,'spacing');pp.appendChild(sp);}
+  if(!headingLevel && !inCell){
+    sp.setAttributeNS(NS.w,'w:before','0');
+    sp.setAttributeNS(NS.w,'w:after',match&&match[1].split('.').length>=3?'0':'36');
+    sp.setAttributeNS(NS.w,'w:line','235');sp.setAttributeNS(NS.w,'w:lineRule','auto');
+  }
+  // Formato de la marca de párrafo (importante en listas automáticas).
+  const pmark=requireChild(doc,pp,'rPr');
+  for(const k of ['sz','szCs']){
+    let el=firstNS(pmark,k);if(!el){el=node(doc,k);pmark.appendChild(el);}
+    el.setAttributeNS(NS.w,'w:val',String(size));
+  }
+  let pFonts=firstNS(pmark,'rFonts');if(!pFonts){pFonts=node(doc,'rFonts');pmark.insertBefore(pFonts,pmark.firstChild);}
+  for(const k of ['ascii','hAnsi','cs','eastAsia'])pFonts.setAttributeNS(NS.w,'w:'+k,'Arial');
+  for(const r of by(par,'r')){
+   if(isInsideRevision(r))continue;
+   const rp=requireChild(doc,r,'rPr');
+   for(const k of ['sz','szCs']){
+    let el=firstNS(rp,k);if(!el){el=node(doc,k);rp.appendChild(el);}
+    el.setAttributeNS(NS.w,'w:val',String(size));
+   }
+   let fonts=firstNS(rp,'rFonts');if(!fonts){fonts=node(doc,'rFonts');rp.insertBefore(fonts,rp.firstChild);}
+   for(const k of ['ascii','hAnsi','cs','eastAsia'])fonts.setAttributeNS(NS.w,'w:'+k,'Arial');
+  }
+ }
+}
+function tsfFixWordNumberingFonts(numberingDoc){
+ if(!numberingDoc)return;
+ for(const lvl of by(numberingDoc,'lvl')){
+  const fmt=firstNS(lvl,'numFmt');const format=fmt?W(fmt,'val'):'';
+  if(!['decimal','upperRoman','lowerRoman','upperLetter','lowerLetter'].includes(format))continue;
+  const rp=requireChild(numberingDoc,lvl,'rPr');
+  let f=firstNS(rp,'rFonts');if(!f){f=node(numberingDoc,'rFonts');rp.insertBefore(f,rp.firstChild);}
+  for(const k of ['ascii','hAnsi','cs','eastAsia'])f.setAttributeNS(NS.w,'w:'+k,'Arial');
+  // Word reproduce los rótulos numéricos del estilo de los párrafos:
+  // no fijar un tamaño único aquí (hay niveles de 11, 10 y 9).
+  for(const k of ['sz','szCs']){const old=firstNS(rp,k);if(old)rp.removeChild(old);}
+ }
+}
+
 function normalizeBodyContent(doc,newDoc=false){
   // Do NOT automatically accept/reject tracked changes, delete text, or rewrite table cells.
   // The previously requested cover/index normalization is retained, but source body stays intact.
@@ -962,10 +1108,11 @@ function normalizeBodyContent(doc,newDoc=false){
     if(inTable(par))continue;
     if(tsfIsNoteParagraph(par))continue; // No alterar formato/justificación de Fuente: ...
     const rawStyle=W(firstNS(firstNS(par,'pPr')||par,'pStyle')||par,'val');
-    const level=newDoc ? (/^TSFH[123]$/.test(rawStyle)?rawStyle:'TSFBody') : detectHeading(par);
+    const autoLevel=!newDoc ? tsfOriginalWordHeadingLevel(par):0;
+    const level=newDoc ? (/^TSFH[123]$/.test(rawStyle)?rawStyle:'TSFBody') : (autoLevel?'TSFH'+autoLevel:detectHeading(par));
     if(level==='TSFH1'||level==='TSFH2'||level==='TSFH3'){
       setPstyle(doc,par,level);
-      tsfSetHeadingGeometry(doc,par);
+      tsfSetHeadingGeometry(doc,par,autoLevel);
       // El resto de la tipografía y del texto queda intacto.
     }else{
       // X.X.X narrativo: eliminar espacio propio de título y mantener el texto unido.
@@ -986,6 +1133,7 @@ function normalizeBodyContent(doc,newDoc=false){
   tsfAlignExistingObjects(doc);
   tsfSizeLevel3Paragraphs(doc);
   tsfForceArialAllRuns(doc);
+  if(!newDoc)tsfFixedWordTypography(doc);
   return frontMatter;
 }
 async function loadAsset(){
@@ -1035,9 +1183,12 @@ async function patchPackage(zip,meta,{newDoc=false,bodyXml='' }={}){
   meta.source={...(meta.source||{}),...findSourceMetadata(document)};
   if(!meta.version){const v=(meta.source.version||'').match(/(?:Versi[oó]n\s*)?([0-9]{1,2})(?![0-9])/i);meta.version=v?v[1].padStart(2,'0'):'01';}
   if(!meta.code)meta.code=meta.source.code||'-';
+  const originalWordToc=!newDoc ? tsfWordOriginalToc(document):null;
+  const originalWordHints=originalWordToc?.hints||[];
+  const wasRemoved=!newDoc && tsfWordRemoveSourceFrontmatter(document,originalWordToc);
   const legacyFrontMatter=normalizeBodyContent(document,newDoc);
   const protectedBodyTables=JSON.stringify(tableMatrix(document));
-  const entries=headingEntries(document,newDoc,meta.pdfOriginalIndexHints||[]);
+  const entries=headingEntries(document,newDoc,meta.pdfOriginalIndexHints||[],originalWordHints);
   // Portada e índice se crean desde cero, una sola vez.
   if(legacyFrontMatter==='preservado'){
     // La portada previa contiene revisiones/comentarios. Se conserva como primera
@@ -1072,6 +1223,11 @@ async function patchPackage(zip,meta,{newDoc=false,bodyXml='' }={}){
   zip.file('word/media/tsf_logo.png',image);
   zip.file('word/document.xml',xmlSave(document));
   zip.file('word/styles.xml',xmlSave(styles));
+  if(!newDoc && fileExists(zip,'word/numbering.xml')){
+    const numbering=xmlParse(await zip.file('word/numbering.xml').async('string'),'numbering.xml');
+    tsfFixWordNumberingFonts(numbering);
+    zip.file('word/numbering.xml',xmlSave(numbering));
+  }
   zip.file(relsPath,xmlSave(rels));
   zip.file('word/headerTSF.xml',headerXml(meta));
   zip.file('word/footerTSF.xml',footerXml());
