@@ -2072,7 +2072,9 @@ function tsfPdfParagraphs(items,base){
      // Una viñeta desplaza su texto ~12-25 pt: admitir esta diferencia.
      const aligned=indent < (current.bullet?47:20);
      const verticallyNear=gap>0 && gap<Math.max(base*1.85,19);
-     const startsNew=/^(?:[a-z][.)]\s+|[•●○◦]\s+|\d{1,2}[.)]\s+)/u.test(line.text);
+     // v1.34: X.X and X.X.X start their own paragraph, just like numbered lists.
+     // This also keeps legacy 4.36 and 4.37 separate even when the PDF has no gap.
+     const startsNew=/^(?:[a-z][.)]\s+|[•●○◦]\s+|\d{1,2}(?:\.\d{1,2}){0,3}\.?[)]?\s+)/u.test(line.text);
      if(aligned&&verticallyNear&&!startsNew){
        // La distribución justificada puede generar espacios grandes visuales;
        // aquí reconstruimos UNA oración y dejamos que Word componga las líneas.
@@ -2122,6 +2124,56 @@ function tsfSplitPdfChapterLead(paragraphs){
  }
  return paragraphs;
 }
+// TSF v1.34: Post-detection pass for the PDF route only.
+// A numeric prefix is NOT sufficient evidence of a heading. Use the words
+// after the prefix and the surrounding paragraphs. In particular, a brief
+// standalone caption (4.3.3 Operaciones por Liquidar) may be a subheading,
+// whereas 4.3.1 ... , son ... is a full explanatory paragraph.
+function tsfV134NormalizeNumberedParagraphs(paragraphs){
+ const numeric=/^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+(.+)$/u;
+ const normalize=t=>String(t||'').replace(/\s+/g,' ').trim();
+ for(let i=0;i<paragraphs.length;i++){
+   const p=paragraphs[i],m=normalize(p.text).match(numeric);
+   if(!m)continue;
+   const level=m[1].split('.').length,rest=m[2].trim();
+   if(level===3){
+     const next=paragraphs[i+1];
+     const nextText=normalize(next?.text);
+     const nextNumeric=numeric.exec(nextText);
+     const isShortCaption=rest.length>=4&&rest.length<=42&&
+       !/[.,;:]$/.test(rest) && !tsfIsPdfNarrativeNumber(p.text) &&
+       (!!nextNumeric || /^TSFH[123]$/.test(next?.style||'') || !next);
+     const isExplicitHeading=tsfIsTrueLevel3Heading(p.text,p.source) ||
+       (rest.length<=90 && /:\s*$/.test(rest));
+     if(isShortCaption||isExplicitHeading){
+       p.style='TSFH3';p.v134ShortHeading=true;p.numberedNarrative=false;p.indent=0;
+     }else if(p.style==='TSFH3'){
+       p.style='TSFBody';p.numberedNarrative=true;
+     }
+   }else if(level===2){
+     // Only the isolated heading is bold; 4.1 Label: long definition
+     // must remain a paragraph, while its label may be highlighted.
+     if(tsfIsPdfNarrativeNumber(p.text)){
+       p.style='TSFBody';p.numberedNarrative=true;
+     }
+   }
+   // A continuation starting in lowercase belongs to its numbered paragraph.
+   // Never merge a subsequent numbered item or an actual heading.
+   const n=paragraphs[i+1];
+   if(n && p.style==='TSFBody' && /^\d{1,2}(?:\.\d{1,2}){1,3}\.?\s+/u.test(p.text) &&
+      n.style==='TSFBody' && !n.bullet && !n.listKind &&
+      /^[a-záéíóúñ]/u.test(normalize(n.text)) &&
+      !/[.!?;:]$/.test(normalize(p.text)) &&
+      Number.isFinite(p.y) && Number.isFinite(n.y) &&
+      p.y>n.y && p.y-n.y<23){
+     p.text=normalize(p.text)+' '+normalize(n.text);
+     p.source=[...(p.source||[]),...(n.source||[])];
+     paragraphs.splice(i+1,1);
+   }
+ }
+ return paragraphs;
+}
+
 // Appendix subitems (1., 2., 3.) are paragraphs, not new chapters.
 function tsfFixAnnexNumberedList(paragraphs){
  let annex=false;
@@ -2192,12 +2244,43 @@ function tsfPdfParagraphAlign(block){
  if(minX>w*.57&&span<w*.35)return 'right';
  return '';
 }
+// TSF v1.34: numeric definitions keep the explanatory text in normal Arial 9.
+// Only the short label preceding a colon is bold; the entry remains TSFBody
+// (and cannot become an index heading). Uses the original rich tokens when
+// the PDF extraction matches, to preserve incidental bold/italics in the prose.
+function tsfV134NumberedLabelXml(block,size){
+ const text=String(block.text||'').replace(/\s+/g,' ').trim();
+ const m=text.match(/^(\d{1,2}(?:\.\d{1,2}){1,3}\.?\s+[^:]{2,78}:)(\s+.{14,})$/u)
+    || text.match(/^(\d{1,2}(?:\.\d{1,2}){1,3}\.?\s+[^,:]{2,68},)(\s+(?:son|es|abonos|cuando|se\b|por\b).{14,})$/iu)
+    || text.match(/^(\d{1,2}(?:\.\d{1,2}){1,3}\.?\s+[^:]{2,68}\.\s*-)(\s+.{14,})$/u);
+ if(!m)return tsfRichTextXml(block.text,block.source,{forceSizePt:size});
+ const boldLen=m[1].length;
+ const tokens=tsfRichTokens(block.source||[]);
+ let emitted='',xml='';
+ if(tokens.length){
+   for(const t of tokens){
+     let part=String(t.text||'').replace(/\s+/g,' ');
+     if(emitted.endsWith(' '))part=part.replace(/^ +/,'');
+     if(!emitted)part=part.replace(/^ +/,'');
+     if(!part)continue;
+     const front=Math.max(0,Math.min(part.length,boldLen-emitted.length));
+     if(front)xml+=tsfRichFragment(part.slice(0,front),t.item,{forceSizePt:size,forceBold:true});
+     if(front<part.length)xml+=tsfRichFragment(part.slice(front),t.item,{forceSizePt:size});
+     emitted+=part;
+   }
+ }
+ if(emitted.replace(/\s+/g,' ').trim()===text)return xml;
+ // Fallback: preserve every character of the paragraph, including the label.
+ return tsfRichFragment(m[1],{size},{forceSizePt:size,forceBold:true})+
+   tsfRichFragment(m[2],{size},{forceSizePt:size});
+}
+
 function tsfBlockHtmlXml(pBlock){
  if(pBlock.style==='TSFSource')return `<w:p><w:pPr><w:pStyle w:val="TSFSource"/></w:pPr>${tsfRichTextXml(pBlock.text,pBlock.source,{note:true,forceSizePt:8})}</w:p>`;
  const outline=tsfOutlineNumber(pBlock.text||'');
  const level3=/^\d{1,2}(?:\.\d{1,2}){2,3}\.?\s+/u.test(String(pBlock.text||'').trim());
  const numberedTwo=/^\d{1,2}\.\d{1,2}\.?\s+/u.test(String(pBlock.text||'').trim())&&!level3;
- const realLevel3=level3 && tsfIsTrueLevel3Heading(pBlock.text,pBlock.source);
+ const realLevel3=level3 && (tsfIsTrueLevel3Heading(pBlock.text,pBlock.source) || pBlock.v134ShortHeading===true);
  // Respetar el estilo estructural decidido en el PDF: el numeral nunca
  // convierte por sí solo un párrafo explicativo en título.
  const heading=/^TSFH[12]$/.test(pBlock.style||'') ||
@@ -2208,9 +2291,13 @@ function tsfBlockHtmlXml(pBlock){
   // starts before the text column and wrapped lines follow the text column.
   const isList=pBlock.listKind==='alphabetic'||pBlock.listKind==='bullet';
   // 23 pt desde el margen para el texto; símbolo a 11 pt, tabulador exacto a 23 pt.
-  const indentation=isList?'<w:ind w:left="400" w:hanging="210"/><w:tabs><w:tab w:val="left" w:pos="400"/></w:tabs>'
+  // Headings: 0 / 160 / 320 twips; no first-line tabs.
+ // Numbered explanatory paragraphs: start at their level's margin, while
+ // wrapped lines align UNDER THE TEXT rather than under the numeric label.
+ const indentation=isList?'<w:ind w:left="400" w:hanging="210"/><w:tabs><w:tab w:val="left" w:pos="400"/></w:tabs>'
+    : level3 && !heading ? '<w:ind w:left="650" w:hanging="330"/>'
     : level3 ? '<w:ind w:left="320" w:firstLine="0"/>'
-    : numberedTwo && !heading ? '<w:ind w:left="160" w:firstLine="0"/>'
+    : numberedTwo && !heading ? '<w:ind w:left="380" w:hanging="220"/>'
     : heading ? (outline && !outline.roman && outline.level===2 ? '<w:ind w:left="160" w:firstLine="0"/>' : '<w:ind w:left="0" w:firstLine="0"/>')
     : indent>0 ? `<w:ind w:left="${Math.round(Math.min(indent,65)*20)}"/>` : '';
   const alignment=pBlock.reference||pBlock.style==='TSFMath'||heading||!!outline?'left':(pBlock.bullet?'both':(tsfPdfParagraphAlign(pBlock)||'both'));
@@ -2222,7 +2309,9 @@ function tsfBlockHtmlXml(pBlock){
   const after=heading?(outline?.roman?55:(outline?.level===1?55:outline?.level===2?46:35))
     :(level3?24:(isList?32:52));
   const opts=`<w:spacing w:before="${before}" w:after="${after}" w:line="258" w:lineRule="auto"/><w:widowControl/>${heading?'<w:keepNext/><w:keepLines/>':''}`;
-  const textXml=isList?tsfListXml(pBlock):tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz,forceBold:heading});
+  const textXml=isList?tsfListXml(pBlock):heading?
+   tsfRichTextXml(pBlock.text,pBlock.source,{forceSizePt:sz,forceBold:true}):
+   tsfV134NumberedLabelXml(pBlock,sz);
   return `<w:p><w:pPr><w:pStyle w:val="${pBlock.style||'TSFBody'}"/>${indentation}${opts}<w:jc w:val="${alignment}"/></w:pPr>${textXml}</w:p>`;
 }
 // Remove source footer/header furniture only in the repeated, geometrically validated zone.
@@ -2654,6 +2743,7 @@ function tsfMakeBlocks(plan,ignoreCover=false,ignoreIndex=false){
  tsfSplitHeadingFromNarrative(paragraphs);
  tsfSplitPdfChapterLead(paragraphs);
  tsfFixAnnexNumberedList(paragraphs);
+ tsfV134NormalizeNumberedParagraphs(paragraphs);
  const blocks=[...tableBlocks,...imageBlocks,...paragraphs.map(b=>({...b,pageWidth:plan.width,kind:'paragraph'}))].sort((a,b)=>b.y-a.y);
  // Safety: a numbered section title must remain a Word paragraph, NEVER a table cell.
  const rows=tsfCoordGroups(items.map(a=>a.y),2.4);
