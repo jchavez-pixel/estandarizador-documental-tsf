@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.33 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.35 · GitHub Pages</footer>
 <!-- TSF v1.27: preserva el diseño v1.26 y elimina selectivamente los índices originales llamados «Contenido» o «Índice». -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -806,6 +806,10 @@ function headingEntries(doc,newDoc=false,indexHints=[],originalWordHints=[]){
  const used=by(doc,'bookmarkStart').map(el=>Number(W(el,'id'))).filter(Number.isFinite);
  const pars=childrenNS(body,'p');let id=Math.max(45000,...used)+1;
  const counters=[0,0,0];
+ // v1.35: a level enters the TSF index only when its *indexed* siblings
+ // form a contiguous hierarchy. A skipped numeric paragraph does NOT become
+ // an invented index title. The whole paragraph remains in the Word body.
+ const indexedNextChild=new Map();
  for(const par of pars){
    const text=paragraphText(par).replace(/\s+/g,' ').trim();
    if(!text)continue;
@@ -836,6 +840,18 @@ function headingEntries(doc,newDoc=false,indexHints=[],originalWordHints=[]){
    if(!explicit || (outline.level>=3 && !autoLevel && !originalHint && !tsfIsTrueLevel3DocxHeading(par) &&
       !(newDoc && rawStyle==='TSFH3' && /:\s*$/.test(text))))continue;
    const level=outline.level;
+   if(newDoc && match && level>=2){
+     const numbers=match[1].split('.').map(Number);
+     if(numbers.length>=2){
+       const parent=numbers.slice(0,level-1).join('.');
+       const parentIsIndexed=level===2 || indexedNextChild.has(numbers.slice(0,-2).join('.'));
+       const expected=indexedNextChild.get(parent)||1;
+       // E.g. 4.3, 4.3.3 and 5.7.3 are *not* an index entry if the
+       // previously numbered subparagraphs were explanatory body text.
+       if(!parentIsIndexed || numbers[level-1]!==expected)continue;
+       indexedNextChild.set(parent,expected+1);
+     }
+   }
    // Un título no numerado antes del primer capítulo pertenece a la
    // introducción/portada y NO se inventa como «0.1» en el índice.
    if(!match&&!originalHint&&!autoLevel&&level>1&&counters[0]===0)continue;
@@ -1279,6 +1295,73 @@ function tsfBalancedWordSpacing(doc){
  }
 }
 
+// TSF v1.35: safe PDF-to-Word hierarchy spacing/indent repair.
+// Works on the final paragraph XML, not on screenshot coordinates. No text is
+// removed or inserted; tables, images, comments and TOC data are left untouched.
+function tsfV135PdfBodyGeometry(doc){
+ const body=by(doc,'body')[0];if(!body)return;
+ let contextLevel=0;
+ const leftByLevel={1:0,2:160,3:320};
+ for(const par of childrenNS(body,'p')){
+   if(inTable(par)||isInsideRevision(par)||tsfIsNoteParagraph(par))continue;
+   const text=paragraphText(par).replace(/\s+/g,' ').trim();
+   if(!text)continue;
+   const ppr=requireChild(doc,par,'pPr');
+   const style=W(firstNS(ppr,'pStyle')||par,'val')||'';
+   const levelMatch=style.match(/^TSFH([123])$/);
+   if(levelMatch){
+      const level=Number(levelMatch[1]);contextLevel=level;
+      const left=leftByLevel[level];
+      let ind=firstNS(ppr,'ind');if(!ind){ind=node(doc,'ind');ppr.appendChild(ind);}
+      ind.setAttributeNS(NS.w,'w:left',String(left));
+      ind.setAttributeNS(NS.w,'w:firstLine','0');
+      ind.removeAttributeNS(NS.w,'w:hanging');
+      ind.removeAttributeNS(NS.w,'hanging');
+      let spacing=firstNS(ppr,'spacing');if(!spacing){spacing=node(doc,'spacing');ppr.appendChild(spacing);}
+      // 1 pt=20 twips. A little more air above the heading than below.
+      spacing.setAttributeNS(NS.w,'w:before',String(level===1?205:level===2?165:135));
+      spacing.setAttributeNS(NS.w,'w:after',String(level===1?65:level===2?55:50));
+      continue;
+   }
+   // Do not modify layout of mathematical objects, figures or source notes.
+   if(style==='TSFSource'||style==='TSFMath')continue;
+   // After a heading, a plain explanation cannot begin to its LEFT.
+   const contextLeft=leftByLevel[contextLevel]||0;
+   let ind=firstNS(ppr,'ind');
+   const number=text.match(/^(\d{1,2}(?:\.\d{1,2}){1,3})\.?\s+/u);
+   const bullet=/^(?:[•●○◦]|[-–]\s|[a-z][.)]\s)/iu.test(text);
+   const numericLevel=number?Math.min(3,number[1].split('.').length):0;
+   if(!ind && contextLeft===0 && !number && !bullet)continue;
+   if(!ind){ind=node(doc,'ind');ppr.appendChild(ind);}
+   const val=k=>Number(ind.getAttributeNS(NS.w,k)||0);
+   const firstLine=Math.max(0,val('left')-val('hanging')+val('firstLine'));
+   const targetLeft=Math.max(contextLeft, numericLevel?leftByLevel[numericLevel]:0);
+   if(number){
+      // Number remains at the normal heading margin; wrapped lines begin
+      // under its text, *not* under the number.
+      const labelOffset=numericLevel===3?330:220;
+      const target=Math.max(firstLine,targetLeft);
+      ind.setAttributeNS(NS.w,'w:left',String(target+labelOffset));
+      ind.setAttributeNS(NS.w,'w:hanging',String(labelOffset));
+      ind.removeAttributeNS(NS.w,'firstLine');
+   }else if(bullet){
+      const target=Math.max(firstLine,targetLeft);
+      const hanging=Math.max(190,val('hanging'));
+      ind.setAttributeNS(NS.w,'w:left',String(target+hanging));
+      ind.setAttributeNS(NS.w,'w:hanging',String(hanging));
+      ind.removeAttributeNS(NS.w,'firstLine');
+   }else if(firstLine<contextLeft){
+      const hanging=val('hanging');
+      if(hanging){
+        ind.setAttributeNS(NS.w,'w:left',String(contextLeft+hanging));
+      }else{
+        ind.setAttributeNS(NS.w,'w:left',String(contextLeft));
+        ind.setAttributeNS(NS.w,'w:firstLine','0');
+      }
+   }
+ }
+}
+
 function normalizeBodyContent(doc,newDoc=false){
   // Do NOT automatically accept/reject tracked changes, delete text, or rewrite table cells.
   // The previously requested cover/index normalization is retained, but source body stays intact.
@@ -1374,6 +1457,7 @@ async function patchPackage(zip,meta,{newDoc=false,bodyXml='' }={}){
   const legacyFrontMatter=normalizeBodyContent(document,newDoc);
   const protectedBodyTables=JSON.stringify(tableMatrix(document));
   const entries=headingEntries(document,newDoc,meta.pdfOriginalIndexHints||[],originalWordHints);
+  if(newDoc)tsfV135PdfBodyGeometry(document); // AFTER TOC heading recognition, which resets heading spacing.
   // Portada e índice se crean desde cero, una sola vez.
   if(legacyFrontMatter==='preservado'){
     // La portada previa contiene revisiones/comentarios. Se conserva como primera
