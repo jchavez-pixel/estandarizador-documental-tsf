@@ -198,7 +198,7 @@ footer{text-align:center;color:#959da6;padding:12px 16px 25px;font-size:10px}
       </footer>
     </section>
   </div>
-  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.29 · GitHub Pages</footer>
+  <footer>© TOTAL Servicios Financieros · Estandarizador Documental TSF v1.30 · GitHub Pages</footer>
 <!-- TSF v1.27: preserva el diseño v1.26 y elimina selectivamente los índices originales llamados «Contenido» o «Índice». -->
 <!-- JSZip 3.10.1 (MIT license). This version bundles the original library to avoid missing GitHub Pages assets. -->
 <script>
@@ -348,10 +348,10 @@ function runTextCell(text,{bold=false,color='242424',sz=17}={}){
 function cell(text,{shade='FFFFFF',width=2200,bold=false,center=false,sz=17}={}){
   return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:shd w:fill="${shade}"/><w:vAlign w:val="center"/><w:tcMar><w:top w:w="85" w:type="dxa"/><w:bottom w:w="85" w:type="dxa"/><w:start w:w="105" w:type="dxa"/><w:end w:w="105" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:spacing w:after="0"/>${center?'<w:jc w:val="center"/>':''}</w:pPr>${run(text||'-',{bold,sz})}</w:p></w:tc>`;
 }
-function tableXml(rows,widths,{header=false}={}){
+function tableXml(rows,widths,{header=false,centerAll=false}={}){
  const total=widths.reduce((a,b)=>a+b,0);
  const grid=widths.map(w=>`<w:gridCol w:w="${w}"/>`).join('');
- const rowXml=rows.map((row,i)=>`<w:tr>${row.map((x,j)=>cell(x.text,{width:widths[j],shade:x.shade||((header&&i===0)?'F5BD00':'FFFFFF'),bold:x.bold||(header&&i===0),center:x.center||false,sz:x.sz||17})).join('')}</w:tr>`).join('');
+ const rowXml=rows.map((row,i)=>`<w:tr>${row.map((x,j)=>cell(x.text,{width:widths[j],shade:x.shade||((header&&i===0)?'F5BD00':'FFFFFF'),bold:x.bold||(header&&i===0),center:centerAll||x.center||false,sz:x.sz||17})).join('')}</w:tr>`).join('');
  return `<w:tbl><w:tblPr><w:tblW w:w="${total}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="single" w:sz="5" w:color="C4C7CD"/><w:bottom w:val="single" w:sz="5" w:color="C4C7CD"/><w:left w:val="single" w:sz="5" w:color="C4C7CD"/><w:right w:val="single" w:sz="5" w:color="C4C7CD"/><w:insideH w:val="single" w:sz="4" w:color="D7DCE2"/><w:insideV w:val="single" w:sz="4" w:color="D7DCE2"/></w:tblBorders></w:tblPr><w:tblGrid>${grid}</w:tblGrid>${rowXml}</w:tbl>`;
 }
 function infoTable(meta){
@@ -361,7 +361,7 @@ function infoTable(meta){
   ['Versión',meta.source?.version||('Versión '+(meta.version||'01')),'Antecedente',value('antecedente')],
   ['Área custodio',value('area'),'Macroproceso',value('macroproceso')],
   ['Proceso',value('proceso'),'Subproceso',value('subproceso')],
-  ['Estado',value('estado'),'Alcance',value('alcance')]
+  ['Estado','Por aprobar','Alcance','Todas las áreas']
  ];
  const rows=d.map(r=>[ {text:r[0],shade:'FFF1C9',bold:true},{text:r[1]},{text:r[2],shade:'FFF1C9',bold:true},{text:r[3]}]);
  return tableXml(rows,[1500,3100,1650,2850]);
@@ -371,13 +371,13 @@ function approvalTable(meta){
    [{text:'Niveles de aprobación'},{text:'Elaborador'},{text:'Revisor'},{text:'Aprobador'}],
    [{text:'Responsable',shade:'FFF1C9',bold:true},{text:meta.author},{text:meta.reviewer},{text:meta.approver||'-'}],
    [{text:'Fecha',shade:'FFF1C9',bold:true},{text:'-'},{text:'-'},{text:'-'}]
- ],[1550,2550,2550,2450],{header:true});
+ ],[1550,2550,2550,2450],{header:true,centerAll:true});
 }
 function historyTable(meta){
  return tableXml([
   ['Versión','Fecha de aprobación','Fecha de vigencia','Motivo del cambio'].map(x=>({text:x})),
   [{text:meta.version||'01',center:true},{text:meta.source?.histAprobacion||'-',center:true},{text:meta.source?.histVigencia||'-',center:true},{text:meta.source?.histMotivo||'-'}]
- ],[1000,2350,2200,3550],{header:true});
+ ],[1000,2350,2200,3550],{header:true,centerAll:true});
 }
 function sectionLabel(text,{black=false}={}){
  const bg=black?'<w:shd w:fill="202020"/>':'';
